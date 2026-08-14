@@ -1,0 +1,6 @@
+# Byggartefakter från vite-plugin-pwa i dev-läge
+dev-dist/
+
+# OS
+.DS_Store
+Thumbs.db

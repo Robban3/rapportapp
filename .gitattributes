@@ -1,0 +1,6 @@
+# LF i repot och i arbetskopian, oavsett plattform. Utan detta får en
+# Windows-checkout CRLF och varje fil ser ändrad ut i CI.
+* text=auto eol=lf
+
+*.png binary
+*.svg text eol=lf
