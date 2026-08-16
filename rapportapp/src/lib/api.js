@@ -45,11 +45,24 @@ export async function harBehorighet(personalId, objektId) {
 }
 
 // -------------------------------------------------- öppet pass för ett objekt
-export async function openPassForObjekt(objektId, datum = verksamhetsdatum()) {
+/**
+ * Hämtar passet för objekt+datum och skapar det om det saknas.
+ *
+ * OBS: bara adminpanelen får anropa den här. Personal går via `passForStaff`,
+ * som aldrig skapar något — annars skulle vem som helst med objektbehörighet
+ * kunna lägga upp ett pass hen inte är bemannad på och börja skriva i det.
+ */
+export async function openPassForObjekt(objektId, datum = verksamhetsdatum(), starttid = nowHHMM()) {
+  // Starttiden är inte kosmetisk: sortKey() räknar inläggens ordning från
+  // den, så ett nattpass som fått fel starttid lägger inläggen efter midnatt
+  // först i rapporten. Lägger admin upp passet i förväg måste tiden därför
+  // gå att ange i stället för att stämplas med "nu".
+  const start = normalizeTid(starttid) ?? nowHHMM()
+
   if (!hasSupabase) {
     let p = db.pass.find((x) => x.objekt_id === objektId && x.datum === datum)
     if (!p) {
-      p = { id: db.newId(), objekt_id: objektId, datum, starttid: nowHHMM(), sluttid: null, status: 'oppet' }
+      p = { id: db.newId(), objekt_id: objektId, datum, starttid: start, sluttid: null, status: 'oppet' }
       db.pass.push(p)
     }
     return clone(p)
@@ -61,11 +74,11 @@ export async function openPassForObjekt(objektId, datum = verksamhetsdatum()) {
   )
   if (befintligt) return befintligt
 
-  // Två värdar som öppnar appen samtidigt vid passtart är normalfallet.
+  // Två administratörer som lägger upp samma pass samtidigt är fullt möjligt.
   // Krocken mot unique (objekt_id, datum) ska inte lämna den ena med ett
   // odefinierat pass och en permanent trasig sida — läs om i stället.
   const skapat = await supabase.from('pass')
-    .insert({ objekt_id: objektId, datum, starttid: nowHHMM(), status: 'oppet' })
+    .insert({ objekt_id: objektId, datum, starttid: start, status: 'oppet' })
     .select().maybeSingle()
 
   if (skapat.error) {
@@ -78,6 +91,170 @@ export async function openPassForObjekt(objektId, datum = verksamhetsdatum()) {
     throw new ApiError('Kunde inte öppna passet.', { orsak: skapat.error, kod: skapat.error.code })
   }
   return kravRad(skapat, 'öppna passet')
+}
+
+/**
+ * Passets start- och sluttid. Sluttiden sätts oftast först när passet är slut.
+ *
+ * Inläggens `sortnyckel` räknas ut mot starttiden när de skrivs, så en ändrad
+ * starttid måste räkna om dem. Utan omräkningen skulle en rättad starttid ge
+ * en rapport där inläggen ligger i fel ordning utan att något syns fel.
+ */
+export async function setPassTider(passId, { starttid = null, sluttid = null } = {}) {
+  const start = starttid ? normalizeTid(starttid) : null
+  const slut = sluttid ? normalizeTid(sluttid) : null
+  if (starttid && !start) throw new ApiError('Starttiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+  if (sluttid && !slut) throw new ApiError('Sluttiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+
+  if (!hasSupabase) {
+    const p = db.pass.find((x) => x.id === passId)
+    if (!p) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
+    p.starttid = start
+    p.sluttid = slut
+    for (const i of db.inlagg) {
+      if (i.pass_id === passId) i.sortnyckel = sortKey(i.tid, start)
+    }
+    return clone(p)
+  }
+
+  const uppdaterat = kravRad(
+    await supabase.from('pass').update({ starttid: start, sluttid: slut }).eq('id', passId).select().maybeSingle(),
+    'spara passets tider'
+  )
+
+  const rader = kastaVidFel(
+    await supabase.from('inlagg').select('id, tid').eq('pass_id', passId),
+    'hämta inläggen för omsortering'
+  )
+  for (const rad of rader || []) {
+    kastaVidFel(
+      await supabase.from('inlagg').update({ sortnyckel: sortKey(rad.tid, start) }).eq('id', rad.id),
+      'sortera om inläggen'
+    )
+  }
+  return uppdaterat
+}
+
+// ------------------------------------------------------------- bemanning
+// `personal_objekt` säger vilka objekt en person FÅR bemannas på.
+// `pass_personal` säger vilka som FAKTISKT jobbar ett visst pass, och det är
+// den som avgör vem som kommer åt passloggen.
+
+/** Passet för objekt+datum, eller null. Skapar inget — det gör openPassForObjekt. */
+export async function passForObjektDatum(objektId, datum) {
+  if (!hasSupabase) {
+    return clone(db.pass.find((x) => x.objekt_id === objektId && x.datum === datum) || null)
+  }
+  const svar = await supabase.from('pass').select('*').eq('objekt_id', objektId).eq('datum', datum).maybeSingle()
+  return kastaVidFel(svar, 'hämta passet') || null
+}
+
+/**
+ * Passet en person får skriva i för ett objekt ett visst datum.
+ *
+ * Returnerar alltid ett objekt så anroparen kan skilja på de tre utfallen:
+ * inget pass upplagt (`pass: null`), upplagt men obemannad (`bemannad: false`)
+ * och bemannad. Ett kastat fel skulle slå ihop dem till "något gick fel".
+ */
+export async function passForStaff(personalId, objektId, datum = verksamhetsdatum()) {
+  const p = await passForObjektDatum(objektId, datum)
+  if (!p) return { pass: null, bemannad: false }
+
+  if (!hasSupabase) {
+    return {
+      pass: p,
+      bemannad: db.passPersonal.some((r) => r.pass_id === p.id && r.personal_id === personalId)
+    }
+  }
+
+  const rad = kastaVidFel(
+    await supabase.from('pass_personal').select('personal_id')
+      .eq('pass_id', p.id).eq('personal_id', personalId).maybeSingle(),
+    'kontrollera bemanningen'
+  )
+  return { pass: p, bemannad: Boolean(rad) }
+}
+
+/** Objekt-id där personen är bemannad ett visst datum. Driver objektlistans status. */
+export async function rosteredObjektIds(personalId, datum = verksamhetsdatum()) {
+  if (!hasSupabase) {
+    const minaPass = new Set(
+      db.passPersonal.filter((r) => r.personal_id === personalId).map((r) => r.pass_id)
+    )
+    return db.pass.filter((p) => p.datum === datum && minaPass.has(p.id)).map((p) => p.objekt_id)
+  }
+  const svar = await supabase.from('pass_personal')
+    .select('pass:pass_id ( objekt_id, datum )').eq('personal_id', personalId)
+  const data = kastaVidFel(svar, 'hämta din bemanning')
+  return (data || []).filter((r) => r.pass?.datum === datum).map((r) => r.pass.objekt_id)
+}
+
+export async function rosterForPass(passId) {
+  const sortera = (a, b) => String(a.initialer || '').localeCompare(String(b.initialer || ''), 'sv')
+
+  if (!hasSupabase) {
+    return db.passPersonal.filter((r) => r.pass_id === passId)
+      .map((r) => ({ ...r, initialer: personalMed(r.personal_id)?.initialer, namn: personalMed(r.personal_id)?.namn }))
+      .sort(sortera)
+  }
+  const svar = await supabase.from('pass_personal')
+    .select('*, personal:personal_id ( initialer, namn )').eq('pass_id', passId)
+  const data = kastaVidFel(svar, 'hämta bemanningen')
+  return (data || []).map((r) => ({ ...r, initialer: r.personal?.initialer, namn: r.personal?.namn })).sort(sortera)
+}
+
+/** Lägger till personen på passet, eller uppdaterar roll och tider om hen redan står där. */
+export async function setRosterEntry(passId, personalId, { roll = null, tid_in = null, tid_ut = null } = {}) {
+  if (!passId || !personalId) throw new ApiError('Pass och person måste anges.', { kod: 'ofullstandig' })
+
+  // Tomma tider är tillåtna — de fylls ofta i först när passet är slut.
+  const inTid = tid_in ? normalizeTid(tid_in) : null
+  const utTid = tid_ut ? normalizeTid(tid_ut) : null
+  if (tid_in && !inTid) throw new ApiError('Tiden in går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+  if (tid_ut && !utTid) throw new ApiError('Tiden ut går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+
+  const rad = { pass_id: passId, personal_id: personalId, roll, tid_in: inTid, tid_ut: utTid }
+
+  if (!hasSupabase) {
+    const i = db.passPersonal.findIndex((r) => r.pass_id === passId && r.personal_id === personalId)
+    if (i >= 0) db.passPersonal[i] = rad
+    else db.passPersonal.push(rad)
+    return { ...rad, initialer: personalMed(personalId)?.initialer, namn: personalMed(personalId)?.namn }
+  }
+
+  const data = kravRad(
+    await supabase.from('pass_personal').upsert(rad, { onConflict: 'pass_id,personal_id' })
+      .select('*, personal:personal_id ( initialer, namn )').maybeSingle(),
+    'spara bemanningen'
+  )
+  return { ...data, initialer: data.personal?.initialer, namn: data.personal?.namn }
+}
+
+export async function removeRosterEntry(passId, personalId) {
+  if (!hasSupabase) {
+    const i = db.passPersonal.findIndex((r) => r.pass_id === passId && r.personal_id === personalId)
+    if (i >= 0) db.passPersonal.splice(i, 1)
+    return { ok: true }
+  }
+  kastaVidFel(
+    await supabase.from('pass_personal').delete().eq('pass_id', passId).eq('personal_id', personalId),
+    'ta bort personen från passet'
+  )
+  return { ok: true }
+}
+
+/** Personal som får bemannas på objektet, dvs. de som är kopplade till det. */
+export async function staffForObjekt(objektId) {
+  const sortera = (a, b) => String(a.initialer || '').localeCompare(String(b.initialer || ''), 'sv')
+
+  if (!hasSupabase) {
+    const ids = db.personalObjekt.filter(([, oid]) => oid === objektId).map(([pid]) => pid)
+    return clone(db.personal.filter((p) => ids.includes(p.id) && p.aktiv)).sort(sortera)
+  }
+  const svar = await supabase.from('personal_objekt')
+    .select('personal:personal_id ( id, namn, initialer, roll, aktiv )').eq('objekt_id', objektId)
+  const data = kastaVidFel(svar, 'hämta personalen på objektet')
+  return (data || []).map((r) => r.personal).filter((p) => p && p.aktiv).sort(sortera)
 }
 
 // ------------------------------------------------------ inlägg i ett pass

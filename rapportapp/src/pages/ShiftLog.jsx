@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { objectsForStaff, openPassForObjekt, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
+import { objectsForStaff, passForStaff, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
 import { useSession } from '../state/session.jsx'
 import { nowHHMM, normalizeTid } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
@@ -12,10 +12,14 @@ export default function ShiftLog() {
   const { objektId } = useParams()
   const { staff } = useSession()
 
-  // Laddning, behörighet och fel är tre olika tillstånd. Tidigare användes
+  // Laddning, behörighet och fel är olika tillstånd. Tidigare användes
   // null som både "laddar" och "hittades inte", så alla fick en
   // behörighetsvarning att blinka förbi vid varje sidladdning.
-  const [status, setStatus] = useState('laddar') // laddar | klar | obehorig | fel
+  //
+  // `obehorig`, `inget_pass` och `ej_bemannad` hålls isär eftersom de kräver
+  // olika åtgärd av värden: be om objektbehörighet, vänta på att passet läggs
+  // upp, respektive be om att bli bemannad på just den här dagen.
+  const [status, setStatus] = useState('laddar') // laddar | klar | obehorig | inget_pass | ej_bemannad | fel
   const [laddfel, setLaddfel] = useState(null)
   const [objekt, setObjekt] = useState(null)
   const [pass, setPass] = useState(null)
@@ -35,15 +39,31 @@ export default function ShiftLog() {
       const mina = await objectsForStaff(staff.id)
       const hittat = mina.find((o) => o.id === objektId)
 
-      // Behörigheten kontrolleras INNAN passet öppnas — annars skapas ett
-      // pass som sidoeffekt för objekt användaren inte får rapportera på.
+      // Objektbehörigheten kontrolleras först. Den säger bara att personen
+      // FÅR bemannas här — bemanningen på dagens pass avgör resten.
       if (!hittat) {
         setStatus('obehorig')
         return
       }
 
       setObjekt(hittat)
-      setPass(await openPassForObjekt(objektId))
+
+      // Passet skapas aldrig härifrån. Admin lägger upp det under Bemanning,
+      // annars kunde vem som helst med objektbehörighet öppna ett pass hen
+      // inte är bemannad på och börja skriva i det.
+      const { pass: dagensPass, bemannad } = await passForStaff(staff.id, objektId)
+      if (!dagensPass) {
+        setStatus('inget_pass')
+        return
+      }
+      if (!bemannad) {
+        // Passet sätts medvetet inte — då startar inte pollningen, och
+        // inlägg hämtas aldrig för någon som inte får läsa dem.
+        setStatus('ej_bemannad')
+        return
+      }
+
+      setPass(dagensPass)
       setStatus('klar')
     } catch (fel) {
       setLaddfel(fel)
@@ -114,6 +134,22 @@ export default function ShiftLog() {
   if (status === 'fel') return <Feltillstand fel={laddfel} onForsokIgen={ladda} />
   if (status === 'obehorig') {
     return <div className="empty">Du har inte behörighet till det här objektet. Be en administratör koppla dig.</div>
+  }
+  if (status === 'inget_pass') {
+    return (
+      <div className="empty">
+        Inget pass är upplagt för {objekt?.namn} idag.
+        <div style={{ marginTop: 6 }}>En administratör lägger upp och bemannar passet under Bemanning.</div>
+      </div>
+    )
+  }
+  if (status === 'ej_bemannad') {
+    return (
+      <div className="empty">
+        Du är inte bemannad på dagens pass på {objekt?.namn}.
+        <div style={{ marginTop: 6 }}>Be en administratör lägga till dig på passet, så ser du loggen.</div>
+      </div>
+    )
   }
 
   return (

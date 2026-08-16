@@ -2,7 +2,7 @@
 // köra direkt. Samma form som api.js exponerar mot Supabase. Datan lever i
 // minnet under sessionen (nollställs vid omladdning).
 
-import { sortKey } from './time.js'
+import { sortKey, verksamhetsdatum } from './time.js'
 
 let seq = 100
 const id = () => String(++seq)
@@ -28,15 +28,24 @@ let personalObjekt = [
   ['p5', 'o1'], ['p5', 'o2'], ['p5', 'o3']
 ]
 
+// pass2 ligger på dagens verksamhetsdatum. Utan det vore demoläget dött så
+// fort passloggen kräver bemanning — pass1 är daterat i historien och finns
+// kvar för att adminpanelens rapportvy ska ha något att visa.
 const pass = [
-  { id: 'pass1', objekt_id: 'o1', datum: '2026-08-07', starttid: '14:30', sluttid: '03:00', status: 'granskas' }
+  { id: 'pass1', objekt_id: 'o1', datum: '2026-08-07',        starttid: '14:30', sluttid: '03:00', status: 'granskas' },
+  { id: 'pass2', objekt_id: 'o1', datum: verksamhetsdatum(),  starttid: '14:30', sluttid: null,    status: 'oppet' }
 ]
 
+// Bemanningen styr vem som kommer åt passloggen. ZÄEM och MOBO är bemannade
+// på dagens pass; VARO och PESA är kopplade till objektet men inte bemannade,
+// så demoläget visar båda utfallen.
 const passPersonal = [
   { pass_id: 'pass1', personal_id: 'p1', roll: 'Värd',         tid_in: '14:30', tid_ut: '23:30' },
   { pass_id: 'pass1', personal_id: 'p2', roll: 'Värd',         tid_in: '18:00', tid_ut: '01:30' },
   { pass_id: 'pass1', personal_id: 'p3', roll: 'Ordningsvakt', tid_in: '16:00', tid_ut: '01:30' },
-  { pass_id: 'pass1', personal_id: 'p4', roll: 'Ordningsvakt', tid_in: '20:00', tid_ut: '03:00' }
+  { pass_id: 'pass1', personal_id: 'p4', roll: 'Ordningsvakt', tid_in: '20:00', tid_ut: '03:00' },
+  { pass_id: 'pass2', personal_id: 'p1', roll: 'Värd',         tid_in: '14:30', tid_ut: '23:30' },
+  { pass_id: 'pass2', personal_id: 'p4', roll: 'Ordningsvakt', tid_in: '20:00', tid_ut: '03:00' }
 ]
 
 const seedEntries = [

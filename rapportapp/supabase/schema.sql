@@ -25,8 +25,9 @@ create table if not exists personal (
   skapad_at    timestamptz not null default now()
 );
 
--- ---------- Koppling personal <-> objekt (styr vad appen visar) ----------
--- En person ser BARA de objekt hen är kopplad till.
+-- ---------- Koppling personal <-> objekt (vem som FÅR bemannas var) ----------
+-- En person ser BARA de objekt hen är kopplad till. Kopplingen ger däremot
+-- ingen åtkomst till en passlogg i sig — det gör bemanningen i pass_personal.
 create table if not exists personal_objekt (
   personal_id  uuid not null references personal(id) on delete cascade,
   objekt_id    uuid not null references objekt(id) on delete cascade,
@@ -46,7 +47,10 @@ create table if not exists pass (
   unique (objekt_id, datum)
 );
 
--- ---------- Vilka som jobbade passet (roster i rapportens topp) ----------
+-- ---------- Bemanning: vilka som jobbar passet ----------
+-- Sätts från adminpanelen (Bemanning) och är appens åtkomstkontroll för
+-- passloggen: bara den som står här kommer åt loggen för objektet det datumet.
+-- Syns också som roster i rapportens topp.
 create table if not exists pass_personal (
   pass_id      uuid not null references pass(id) on delete cascade,
   personal_id  uuid not null references personal(id) on delete cascade,
@@ -55,6 +59,8 @@ create table if not exists pass_personal (
   tid_ut       text,
   primary key (pass_id, personal_id)
 );
+-- Objektlistan frågar "var är jag bemannad idag?" per inloggning.
+create index if not exists pass_personal_personal on pass_personal (personal_id);
 
 -- ---------- Inlägg (fria anteckningar i passloggen) ----------
 create table if not exists inlagg (
@@ -92,10 +98,12 @@ create or replace view pass_statistik as
 
 -- =====================================================================
 -- RLS (Row Level Security) — utgångspunkt.
+--
 -- OBS: scaffolden loggar in med personlig kod via appens datalager och
--- filtrerar objekt i frågan. När ni kopplar riktig Supabase Auth,
--- aktivera RLS och koppla auth.uid() till personal-raden. Exempel nedan
--- är avstängt tills ni har auth på plats.
+-- filtrerar i frågan. Det betyder att bemanningsspärren i dag bara finns i
+-- klienten — den som kan anropa API:t direkt kommer förbi den. Vill ni att
+-- "bara bemannad personal ser loggen" ska hålla på riktigt måste den
+-- upprätthållas här nere. Exemplen är avstängda tills ni har Supabase Auth.
 -- =====================================================================
 -- alter table objekt enable row level security;
 -- create policy "personal ser kopplade objekt" on objekt for select
@@ -103,6 +111,28 @@ create or replace view pass_statistik as
 --     select 1 from personal_objekt po
 --     join personal pe on pe.id = po.personal_id
 --     where po.objekt_id = objekt.id and pe.auth_user_id = auth.uid()
+--   ));
+--
+-- alter table inlagg enable row level security;
+-- create policy "bemannad personal ser passloggen" on inlagg for select
+--   using (exists (
+--     select 1 from pass_personal pp
+--     join personal pe on pe.id = pp.personal_id
+--     where pp.pass_id = inlagg.pass_id and pe.auth_user_id = auth.uid()
+--   ));
+-- create policy "bemannad personal skriver i passloggen" on inlagg for insert
+--   with check (exists (
+--     select 1 from pass_personal pp
+--     join personal pe on pe.id = pp.personal_id
+--     where pp.pass_id = inlagg.pass_id and pe.auth_user_id = auth.uid()
+--   ));
+--
+-- Bemanningen sätts bara av admin — personal ska aldrig kunna skriva sig
+-- själv till ett pass:
+-- alter table pass_personal enable row level security;
+-- create policy "bara admin bemannar" on pass_personal for all
+--   using (exists (
+--     select 1 from personal pe where pe.auth_user_id = auth.uid() and pe.roll = 'Admin'
 --   ));
 
 -- =====================================================================
