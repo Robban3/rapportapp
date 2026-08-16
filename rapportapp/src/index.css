@@ -68,6 +68,8 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-r
 .role-tag{font-size:10px;font-weight:800;color:var(--accent);background:var(--surface2);border:1px solid var(--border);
   padding:1px 7px;border-radius:6px;margin-left:8px;text-transform:uppercase;letter-spacing:.03em;}
 .log-meta{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin:8px 2px;}
+.natt-tag{font-size:9.5px;font-weight:800;color:var(--warn);background:rgba(202,138,4,.14);
+  padding:2px 7px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em;margin-left:7px;}
 .entries{display:flex;flex-direction:column;gap:7px;}
 .entry{display:flex;gap:11px;}
 .entry .t{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--accent);width:52px;flex:none;padding-top:8px;}

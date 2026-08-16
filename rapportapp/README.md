@@ -75,12 +75,48 @@ supabase/schema.sql  # databasschema + seed
 | Pass | `pass_personal` | Bemanning | Vem som **faktiskt** kommer åt passloggen för ett objekt ett datum |
 
 Objektkopplingen ensam ger alltså ingen åtkomst till någon logg. Admin lägger upp passet
-under **Bemanning** (objekt + datum + starttid) och bockar in vilka som jobbar det; först då
-kan de skriva och läsa. Passet skapas aldrig av personalen — `passForStaff()` hämtar bara,
-`openPassForObjekt()` skapar och anropas enbart från adminpanelen.
+under **Bemanning** (objekt + datum + tider) och bockar in vilka som jobbar det; först då
+kan de skriva och läsa. Passet skapas aldrig av personalen — `aktivtPassForStaff()` hämtar
+bara, `openPassForObjekt()` skapar och anropas enbart från adminpanelen.
+
+Objektlistan visar tre lägen per objekt, så kortet aldrig ljuger: **Öppna** (bemannad på ett
+pass som pågår), **Ej bemannad** (pass pågår, men du står inte på det) och **Inget pass nu**
+(kvällens pass har inte börjat än). En låst rapport går inte att skriva vidare i.
 
 Starttiden är inte kosmetisk: `sortKey()` räknar inläggens ordning från den, så ändras den
 i efterhand räknar `setPassTider()` om `sortnyckel` för passets alla inlägg.
+
+## Pass över midnatt
+
+**Ett pass är daterat sin startdag.** Det är hela regeln — allt annat följer av den.
+
+Ett pass som börjar 22:00 den 16:e och slutar 06:00 den 17:e är **ett** pass, daterat
+`2026-08-16`. Klockan 02:00 skriver värden fortfarande i 16:e:s pass, och hela natten
+hamnar i samma rapport med samma datum.
+
+Tre saker faller ut av det:
+
+- **Passet öppnas och stängs av sina egna tider.** `passFonster()` räknar ut det verkliga
+  fönstret: ligger sluttiden inte efter starttiden hör den till nästa dygn. `arPassAktivt()`
+  svarar på om nuet ligger inom fönstret, med en timmes tolerans i varje ände så att den som
+  kommer tidigt eller skriver sitt sista inlägg 03:05 inte låses ute.
+- **Ingen gissad brytpunkt.** Tidigare avgjorde `verksamhetsdatum()` saken med en fast gräns
+  kl 05:00. En värd som jobbade 22:00–06:00 tappade då sitt pass klockan fem, en timme innan
+  hen slutade. `verksamhetsdatum()` används numera bara som förvalt datum i adminpanelen —
+  praktiskt, för kl 02:00 är det gårdagens pass man vill bemanna.
+- **Inläggens ordning räknas från passets start, inte från midnatt.** Skriv klockslaget som
+  det står på klockan; 02:15 hamnar efter 23:00, inte först i rapporten.
+
+| Klockan | Vad appen gör med ett pass 22:00–06:00 daterat 16 aug |
+|---|---|
+| 16 aug 21:30 | Öppet — en halvtimme tidigt ryms i toleransen |
+| 16 aug 23:50 | Öppet |
+| 17 aug 00:10 | Öppet, fortfarande 16 aug:s pass |
+| 17 aug 05:30 | Öppet — här tappade den gamla brytpunkten passet |
+| 17 aug 07:30 | Stängt, rapporten går till granskning |
+
+Sätt alltid sluttiden i Bemanning. Utan den vet appen inte när loggen ska stängas och
+räknar passet som öppet ett dygn från starten.
 
 > **Obs:** spärren ligger i klienten så länge inloggningen sker med personlig kod i
 > datalagret. För skarp drift måste den upprätthållas med RLS — se de färdiga
