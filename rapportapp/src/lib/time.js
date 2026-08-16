@@ -14,6 +14,11 @@ const DYGN = 24 * 60
 // "tidigt i passet" i stället för att skjutas till nästa dygn.
 const TIDIG_TOLERANS = 60
 
+// Hur länge efter sluttiden passet fortfarande går att skriva i. Det sista
+// inlägget ("hänger av bricka, avslutar passet") skrivs nästan alltid några
+// minuter efter den utsatta sluttiden.
+const SEN_TOLERANS = 60
+
 // Timme då verksamhetsdygnet byter. Ett inlägg kl 02:30 hör till gårdagens
 // pass. Kan skrivas över per objekt.
 export const BRYTPUNKT_TIMME = 5
@@ -114,10 +119,65 @@ export function todayISO(d = new Date()) {
   return localISO(d)
 }
 
+/** 'YYYY-MM-DD' till en lokal Date vid midnatt. `new Date(datum)` tolkar UTC. */
+function datumTillDate(datum) {
+  const [ar, manad, dag] = String(datum).split('-').map(Number)
+  return new Date(ar, (manad || 1) - 1, dag || 1)
+}
+
+/**
+ * Passets verkliga tidsfönster.
+ *
+ * Ett pass är daterat sin STARTDAG, inte den dag det slutar. Ett pass
+ * 14:30–03:00 daterat 16 aug löper alltså från 16 aug 14:30 till 17 aug
+ * 03:00. Sluttiden hör till nästa dygn så snart den inte ligger efter
+ * starttiden — det är hela midnattsregeln, och den behöver ingen gissad
+ * brytpunkt eftersom passet bär sina egna tider.
+ *
+ * Saknas sluttid är passet öppet och löper ett dygn från starten.
+ */
+export function passFonster({ datum, starttid, sluttid } = {}) {
+  const dag = datumTillDate(datum)
+  const startMinut = toMinutes(starttid) ?? 0
+
+  const start = new Date(dag.getTime())
+  start.setMinutes(startMinut)
+
+  const slutMinut = toMinutes(sluttid)
+  if (slutMinut === null) {
+    const slut = new Date(start.getTime())
+    slut.setDate(slut.getDate() + 1)
+    return { start, slut, overMidnatt: false, oppetSlut: true }
+  }
+
+  const overMidnatt = slutMinut <= startMinut
+  const slut = new Date(dag.getTime())
+  slut.setMinutes(slutMinut)
+  if (overMidnatt) slut.setDate(slut.getDate() + 1)
+
+  return { start, slut, overMidnatt, oppetSlut: false }
+}
+
+/**
+ * Är passet igång just nu? Toleransen i båda ändar gör att den som kommer en
+ * kvart tidigt, eller skriver sitt sista inlägg strax efter sluttiden, inte
+ * låses ute.
+ */
+export function arPassAktivt(pass, nu = new Date()) {
+  const { start, slut } = passFonster(pass)
+  const tid = nu.getTime()
+  return tid >= start.getTime() - TIDIG_TOLERANS * 60000
+      && tid <= slut.getTime() + SEN_TOLERANS * 60000
+}
+
 /**
  * Vilket verksamhetsdygn en tidpunkt hör till. Före brytpunkten räknas
  * tidpunkten till föregående dygn, så ett inlägg kl 00:20 hamnar i passet
  * som startade kvällen innan i stället för i ett nytt, tomt pass.
+ *
+ * Används numera bara som förvalt datum i adminpanelen. Vilket pass en värd
+ * släpps in i avgörs av `arPassAktivt`, som läser passets egna tider i
+ * stället för att gissa på en fast brytpunkt.
  */
 export function verksamhetsdatum(d = new Date(), brytpunktTimme = BRYTPUNKT_TIMME) {
   if (d.getHours() >= brytpunktTimme) return localISO(d)

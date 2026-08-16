@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { objectsForStaff, passForStaff, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
+import { objectsForStaff, aktivtPassForStaff, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
 import { useSession } from '../state/session.jsx'
-import { nowHHMM, normalizeTid } from '../lib/time.js'
+import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
 import Feltillstand from '../components/Feltillstand.jsx'
 
@@ -51,7 +51,10 @@ export default function ShiftLog() {
       // Passet skapas aldrig härifrån. Admin lägger upp det under Bemanning,
       // annars kunde vem som helst med objektbehörighet öppna ett pass hen
       // inte är bemannad på och börja skriva i det.
-      const { pass: dagensPass, bemannad } = await passForStaff(staff.id, objektId)
+      //
+      // Vilket pass det blir avgörs av passets egna tider, inte av dagens
+      // datum: kl 02:00 är det gårdagens pass som pågår.
+      const { pass: dagensPass, bemannad } = await aktivtPassForStaff(staff.id, objektId)
       if (!dagensPass) {
         setStatus('inget_pass')
         return
@@ -138,7 +141,7 @@ export default function ShiftLog() {
   if (status === 'inget_pass') {
     return (
       <div className="empty">
-        Inget pass är upplagt för {objekt?.namn} idag.
+        Inget pass pågår just nu på {objekt?.namn}.
         <div style={{ marginTop: 6 }}>En administratör lägger upp och bemannar passet under Bemanning.</div>
       </div>
     )
@@ -146,11 +149,14 @@ export default function ShiftLog() {
   if (status === 'ej_bemannad') {
     return (
       <div className="empty">
-        Du är inte bemannad på dagens pass på {objekt?.namn}.
+        Du är inte bemannad på passet som pågår på {objekt?.namn}.
         <div style={{ marginTop: 6 }}>Be en administratör lägga till dig på passet, så ser du loggen.</div>
       </div>
     )
   }
+
+  const fonster = passFonster(pass)
+  const last = pass.status === 'skickat'
 
   return (
     <div>
@@ -158,7 +164,14 @@ export default function ShiftLog() {
         <span className="obj-ico">{objekt.namn.split(' ').slice(0, 2).map((w) => w[0]).join('')}</span>
         <div>
           <div className="obj-name">{objekt.namn}<span className="role-tag">{staff.roll}</span></div>
-          <div className="obj-sub">Pass {pass?.datum} · signerar som {staff.initialer}</div>
+          {/* Datumet är passets STARTDAG. Kl 02:00 står det alltså gårdagens
+              datum här, och det är meningen — annars tror värden att hen
+              skriver i fel pass. */}
+          <div className="obj-sub">
+            Pass {pass.datum} · {pass.starttid}–{pass.sluttid || 'pågår'}
+            {fonster.overMidnatt && <span className="natt-tag">över midnatt</span>}
+            {' '}· signerar som {staff.initialer}
+          </div>
         </div>
       </div>
 
@@ -183,6 +196,13 @@ export default function ShiftLog() {
         <div ref={bottom} />
       </div>
 
+      {/* En låst rapport får inte kunna växa. Tidigare gick det att skriva
+          vidare i ett pass admin redan skickat till kund. */}
+      {last ? (
+        <div className="empty" style={{ marginTop: 14 }}>
+          Passet är låst och rapporten skickad. Rättelser läggs till av en administratör.
+        </div>
+      ) : (
       <div className="composer">
         <div className="composer-inner">
           <div className="crow">
@@ -204,9 +224,14 @@ export default function ShiftLog() {
                 onClick={() => setInc(inc === t.key ? null : t.key)}>{t.kort}</button>
             ))}
           </div>
-          <div className="inc-hint">Tid förifylls automatiskt · går att ändra · stöder intervall (t.ex. 20:45-21:30). Tagga valfritt en incident så räknas statistiken automatiskt.</div>
+          <div className="inc-hint">
+            Tid förifylls automatiskt · går att ändra · stöder intervall (t.ex. 20:45-21:30).
+            Tagga valfritt en incident så räknas statistiken automatiskt.
+            {fonster.overMidnatt && ' Passet går över midnatt — skriv klockslaget som det står på klockan, appen lägger inlägget rätt ändå.'}
+          </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

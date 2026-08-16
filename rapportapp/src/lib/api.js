@@ -8,7 +8,7 @@
 
 import { hasSupabase, supabase } from './supabase.js'
 import { db } from './mockStore.js'
-import { sortKey, nowHHMM, normalizeTid, verksamhetsdatum } from './time.js'
+import { sortKey, nowHHMM, normalizeTid, verksamhetsdatum, localISO, passFonster, arPassAktivt } from './time.js'
 import { emptyStats, INCIDENT_TYPES } from './incidents.js'
 import { ApiError, kastaVidFel, kravRad } from './errors.js'
 
@@ -175,18 +175,101 @@ export async function passForStaff(personalId, objektId, datum = verksamhetsdatu
   return { pass: p, bemannad: Boolean(rad) }
 }
 
-/** Objekt-id där personen är bemannad ett visst datum. Driver objektlistans status. */
-export async function rosteredObjektIds(personalId, datum = verksamhetsdatum()) {
+/**
+ * Datumen ett pågående pass kan vara daterat. Ett pass bär sin STARTDAG, så
+ * kl 02:00 jobbar man i gårdagens pass — därför räcker det att titta på i går
+ * och i dag oavsett hur sent på natten det är.
+ */
+function aktuellaDatum(nu = new Date()) {
+  const igar = new Date(nu.getTime())
+  igar.setDate(igar.getDate() - 1)
+  return [localISO(igar), localISO(nu)]
+}
+
+/** Passen på ett objekt som kan vara igång nu, oavsett bemanning. */
+async function passKandidater(objektId, nu) {
+  const datumen = aktuellaDatum(nu)
   if (!hasSupabase) {
-    const minaPass = new Set(
-      db.passPersonal.filter((r) => r.personal_id === personalId).map((r) => r.pass_id)
-    )
-    return db.pass.filter((p) => p.datum === datum && minaPass.has(p.id)).map((p) => p.objekt_id)
+    return db.pass.filter((p) => p.objekt_id === objektId && datumen.includes(p.datum)).map((p) => clone(p))
   }
-  const svar = await supabase.from('pass_personal')
-    .select('pass:pass_id ( objekt_id, datum )').eq('personal_id', personalId)
-  const data = kastaVidFel(svar, 'hämta din bemanning')
-  return (data || []).filter((r) => r.pass?.datum === datum).map((r) => r.pass.objekt_id)
+  const svar = await supabase.from('pass').select('*').eq('objekt_id', objektId).in('datum', datumen)
+  return kastaVidFel(svar, 'hämta passen') || []
+}
+
+/**
+ * Passet en person ska skriva i just nu på ett objekt.
+ *
+ * Väljer det pass vars egna tider omsluter nuet, i stället för att räkna ut
+ * ett verksamhetsdatum. Skillnaden märks på nattpass: med en fast brytpunkt
+ * kl 05 tappade en värd som jobbade 22:00–06:00 sitt pass en timme innan hen
+ * slutade.
+ *
+ * Tre utfall hålls isär: inget pass igång (`pass: null`), pass igång men
+ * obemannad (`bemannad: false`), och bemannad.
+ */
+export async function aktivtPassForStaff(personalId, objektId, nu = new Date()) {
+  const kandidater = await passKandidater(objektId, nu)
+  const igang = kandidater
+    .filter((p) => arPassAktivt(p, nu))
+    .sort((a, b) => passFonster(b).start - passFonster(a).start)
+
+  if (!igang.length) return { pass: null, bemannad: false }
+
+  const mina = await bemannadePassIds(personalId, igang.map((p) => p.id))
+
+  // Är personen bemannad på något av dem vinner det. Annars returneras det
+  // senast startade ändå, så UI:t kan säga "du är inte bemannad" i stället
+  // för det missvisande "inget pass är upplagt".
+  const valt = igang.find((p) => mina.has(p.id)) || igang[0]
+  return { pass: valt, bemannad: mina.has(valt.id) }
+}
+
+async function bemannadePassIds(personalId, passIds) {
+  if (!passIds.length) return new Set()
+  if (!hasSupabase) {
+    return new Set(
+      db.passPersonal
+        .filter((r) => r.personal_id === personalId && passIds.includes(r.pass_id))
+        .map((r) => r.pass_id)
+    )
+  }
+  const svar = await supabase.from('pass_personal').select('pass_id')
+    .eq('personal_id', personalId).in('pass_id', passIds)
+  return new Set((kastaVidFel(svar, 'kontrollera bemanningen') || []).map((r) => r.pass_id))
+}
+
+/**
+ * Status per objekt för objektlistan: `bemannad`, `ej_bemannad` eller
+ * `inget_pass`.
+ *
+ * De tre hålls isär för att kortet inte ska ljuga. Ett "Ej bemannad" mitt på
+ * dagen, när kvällens pass ännu inte startat, hade fått en värd att tro att
+ * hen strukits från schemat.
+ */
+export async function objektStatusForStaff(personalId, objektIds, nu = new Date()) {
+  const status = Object.fromEntries(objektIds.map((id) => [id, 'inget_pass']))
+  if (!objektIds.length) return status
+
+  const datumen = aktuellaDatum(nu)
+
+  let pass
+  if (!hasSupabase) {
+    pass = db.pass.filter((p) => objektIds.includes(p.objekt_id) && datumen.includes(p.datum)).map(clone)
+  } else {
+    const svar = await supabase.from('pass').select('*').in('objekt_id', objektIds).in('datum', datumen)
+    pass = kastaVidFel(svar, 'hämta passen') || []
+  }
+
+  const igang = pass.filter((p) => arPassAktivt(p, nu))
+  if (!igang.length) return status
+
+  const mina = await bemannadePassIds(personalId, igang.map((p) => p.id))
+  for (const p of igang) {
+    // Ett bemannat pass slår ett obemannat om två skulle överlappa.
+    if (mina.has(p.id)) status[p.objekt_id] = 'bemannad'
+    else if (status[p.objekt_id] === 'inget_pass') status[p.objekt_id] = 'ej_bemannad'
+  }
+  return status
 }
 
 export async function rosterForPass(passId) {
@@ -241,6 +324,45 @@ export async function removeRosterEntry(passId, personalId) {
     'ta bort personen från passet'
   )
   return { ok: true }
+}
+
+/**
+ * Senaste passet på objektet före `foreDatum` som faktiskt hade bemanning.
+ * Driver "kopiera förra passets bemanning" — laget är sällan nytt varje dag.
+ */
+export async function senasteBemannadePass(objektId, foreDatum) {
+  let kandidater
+  if (!hasSupabase) {
+    kandidater = db.pass
+      .filter((p) => p.objekt_id === objektId && p.datum < foreDatum)
+      .sort((a, b) => b.datum.localeCompare(a.datum))
+      .map(clone)
+  } else {
+    const svar = await supabase.from('pass').select('*').eq('objekt_id', objektId)
+      .lt('datum', foreDatum).order('datum', { ascending: false }).limit(10)
+    kandidater = kastaVidFel(svar, 'hämta tidigare pass') || []
+  }
+
+  // Ett upplagt men obemannat pass är inget att kopiera från — leta vidare.
+  for (const p of kandidater) {
+    const roster = await rosterForPass(p.id)
+    if (roster.length) return { pass: p, roster }
+  }
+  return null
+}
+
+/** Kopierar bemanningen från ett tidigare pass. Rör inte dem som redan står på passet. */
+export async function kopieraBemanning(franPassId, tillPassId) {
+  const kalla = await rosterForPass(franPassId)
+  const redanPa = new Set((await rosterForPass(tillPassId)).map((r) => r.personal_id))
+
+  let lagda = 0
+  for (const r of kalla) {
+    if (redanPa.has(r.personal_id)) continue
+    await setRosterEntry(tillPassId, r.personal_id, { roll: r.roll, tid_in: r.tid_in, tid_ut: r.tid_ut })
+    lagda++
+  }
+  return { lagda, hoppade: kalla.length - lagda }
 }
 
 /** Personal som får bemannas på objektet, dvs. de som är kopplade till det. */

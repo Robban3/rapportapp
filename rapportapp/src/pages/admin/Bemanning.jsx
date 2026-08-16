@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   listObjects, openPassForObjekt, passForObjektDatum, setPassTider,
-  rosterForPass, setRosterEntry, removeRosterEntry, staffForObjekt
+  rosterForPass, setRosterEntry, removeRosterEntry, staffForObjekt,
+  senasteBemannadePass, kopieraBemanning
 } from '../../lib/api.js'
-import { verksamhetsdatum } from '../../lib/time.js'
+import { verksamhetsdatum, passFonster } from '../../lib/time.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 
@@ -19,6 +20,7 @@ export default function Bemanning() {
   const [pass, setPass] = useState(null)
   const [roster, setRoster] = useState([])
   const [personal, setPersonal] = useState([])
+  const [forra, setForra] = useState(null)
 
   const [laddfel, setLaddfel] = useState(null)
   const [tider, setTider] = useState({ starttid: '', sluttid: '' })
@@ -38,16 +40,18 @@ export default function Bemanning() {
     setFel('')
     setPass(null)
     try {
-      const [p, kopplade] = await Promise.all([
+      const [p, kopplade, tidigare] = await Promise.all([
         passForObjektDatum(objektId, datum),
-        staffForObjekt(objektId)
+        staffForObjekt(objektId),
+        senasteBemannadePass(objektId, datum)
       ])
       setPersonal(kopplade)
+      setForra(tidigare)
 
       if (!p) {
         setPass(false)
         setRoster([])
-        setTider({ starttid: '', sluttid: '' })
+        setTider({ starttid: tidigare?.pass.starttid || '', sluttid: '' })
         return
       }
       setPass(p)
@@ -75,9 +79,22 @@ export default function Bemanning() {
 
   const laggUppPass = () => kor(async () => {
     const p = await openPassForObjekt(objektId, datum, tider.starttid || undefined)
-    setPass(p)
-    setTider({ starttid: p.starttid || '', sluttid: p.sluttid || '' })
-    setRoster(await rosterForPass(p.id))
+    // Sluttiden från förra passet följer med — nästan alla pass på ett objekt
+    // har samma tider, och utan sluttid vet appen inte när passet är slut.
+    if (forra?.pass.sluttid) await setPassTider(p.id, { starttid: p.starttid, sluttid: forra.pass.sluttid })
+    const uppdaterat = await passForObjektDatum(objektId, datum)
+    setPass(uppdaterat)
+    setTider({ starttid: uppdaterat.starttid || '', sluttid: uppdaterat.sluttid || '' })
+    setRoster(await rosterForPass(uppdaterat.id))
+  })
+
+  const kopiera = () => kor(async () => {
+    const { lagda } = await kopieraBemanning(forra.pass.id, pass.id)
+    if (!lagda) {
+      setFel('Alla från förra passet står redan på det här passet.')
+      return
+    }
+    setRoster(await rosterForPass(pass.id))
   })
 
   const sparaTider = () => kor(async () => {
@@ -118,6 +135,7 @@ export default function Bemanning() {
 
   const last = pass && pass.status === 'skickat'
   const kvar = personal.filter((p) => !roster.some((r) => r.personal_id === p.id))
+  const fonster = pass ? passFonster(pass) : null
 
   return (
     <div className="panel">
@@ -177,10 +195,34 @@ export default function Bemanning() {
             <button className="btn" onClick={sparaTider} disabled={busy || last}>Spara tider</button>
           </div>
 
+          {/* Midnatt är den vanligaste källan till förvirring här: passet är
+              daterat sin startdag, så ett pass 14:30–03:00 den 16:e slutar
+              kl 03:00 den 17:e — men allt ligger kvar i 16:e:s rapport. */}
+          {fonster?.overMidnatt && (
+            <div className="inc-hint">
+              Går över midnatt: börjar {pass.starttid} den {pass.datum} och slutar {pass.sluttid} dagen efter.
+              Allt hamnar i samma rapport, daterad {pass.datum}.
+            </div>
+          )}
+          {fonster?.oppetSlut && (
+            <div className="inc-hint">
+              Ingen sluttid satt — passet räknas som öppet ett dygn från starten. Sätt sluttiden,
+              så vet appen när loggen ska stängas för personalen.
+            </div>
+          )}
+
           <div className="mini-lbl" style={{ marginTop: 20 }}>
             På passet ({roster.length})
             {last && <span className="pill sent" style={{ marginLeft: 8 }}>Låst</span>}
           </div>
+
+          {!last && forra && (
+            <div className="form-row" style={{ marginTop: 0, marginBottom: 12 }}>
+              <button className="btn" onClick={kopiera} disabled={busy}>
+                Kopiera bemanning från {forra.pass.datum} ({forra.roster.length} pers.)
+              </button>
+            </div>
+          )}
 
           {roster.length === 0 ? (
             <div className="empty">

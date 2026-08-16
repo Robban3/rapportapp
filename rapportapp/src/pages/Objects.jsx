@@ -1,24 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { objectsForStaff, rosteredObjektIds } from '../lib/api.js'
+import { objectsForStaff, objektStatusForStaff } from '../lib/api.js'
 import { useSession } from '../state/session.jsx'
 import Feltillstand from '../components/Feltillstand.jsx'
+
+const STATUSTEXT = {
+  bemannad: 'Öppna',
+  ej_bemannad: 'Ej bemannad',
+  inget_pass: 'Inget pass nu'
+}
 
 export default function Objects() {
   const { staff } = useSession()
   const [objekt, setObjekt] = useState(null)
-  const [bemannade, setBemannade] = useState(new Set())
+  const [status, setStatus] = useState({})
   const [fel, setFel] = useState(null)
   const nav = useNavigate()
 
   const ladda = useCallback(() => {
     setFel(null)
     setObjekt(null)
-    // Båda hämtas tillsammans: kortet ska aldrig hinna visa "Öppna" innan
-    // bemanningen är känd och sedan byta till "Ej bemannad".
-    Promise.all([objectsForStaff(staff.id), rosteredObjektIds(staff.id)])
-      .then(([mina, bemannadePa]) => {
-        setBemannade(new Set(bemannadePa))
+    // Statusen hämtas innan listan visas: kortet ska aldrig hinna säga
+    // "Öppna" och sedan byta till "Ej bemannad".
+    objectsForStaff(staff.id)
+      .then(async (mina) => {
+        setStatus(await objektStatusForStaff(staff.id, mina.map((o) => o.id)))
         setObjekt(mina)
       })
       .catch(setFel)
@@ -29,7 +35,7 @@ export default function Objects() {
   return (
     <div>
       <div className="page-title">Välj objekt</div>
-      <div className="page-sub">Du ser bara de objekt du är kopplad till, och kan skriva i passet de dagar du är bemannad.</div>
+      <div className="page-sub">Du ser bara de objekt du är kopplad till. Passet öppnas när det startar, och stängs när det slutar — även när det pågår över midnatt.</div>
       {fel ? (
         <Feltillstand fel={fel} onForsokIgen={ladda} />
       ) : objekt === null ? (
@@ -39,9 +45,9 @@ export default function Objects() {
       ) : (
         <div className="obj-list">
           {objekt.map((o) => {
-            const bemannad = bemannade.has(o.id)
+            const s = status[o.id] || 'inget_pass'
             return (
-              // Obemannade objekt går fortfarande att trycka på — passloggen
+              // Även objekt utan pågående pass går att trycka på — passloggen
               // förklarar vad som saknas. En låst knapp hade bara varit tyst.
               <button key={o.id} className="obj-card" onClick={() => nav(`/objekt/${o.id}`)}>
                 <span className="obj-ico">{initials(o.namn)}</span>
@@ -49,8 +55,8 @@ export default function Objects() {
                   <span className="obj-name">{o.namn}</span>
                   <span className="obj-sub" style={{ display: 'block' }}>{o.kund_epost}</span>
                 </span>
-                <span className={'status ' + (bemannad ? 'st-on' : 'st-off')}>
-                  {bemannad ? 'Öppna' : 'Ej bemannad'}
+                <span className={'status ' + (s === 'bemannad' ? 'st-on' : 'st-off')}>
+                  {STATUSTEXT[s]}
                 </span>
               </button>
             )

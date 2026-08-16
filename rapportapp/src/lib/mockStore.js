@@ -2,7 +2,7 @@
 // köra direkt. Samma form som api.js exponerar mot Supabase. Datan lever i
 // minnet under sessionen (nollställs vid omladdning).
 
-import { sortKey, verksamhetsdatum } from './time.js'
+import { sortKey, localISO, nowHHMM } from './time.js'
 
 let seq = 100
 const id = () => String(++seq)
@@ -28,12 +28,22 @@ let personalObjekt = [
   ['p5', 'o1'], ['p5', 'o2'], ['p5', 'o3']
 ]
 
-// pass2 ligger på dagens verksamhetsdatum. Utan det vore demoläget dött så
-// fort passloggen kräver bemanning — pass1 är daterat i historien och finns
-// kvar för att adminpanelens rapportvy ska ha något att visa.
+// Åtkomsten till passloggen avgörs av passets EGNA tider, så demopasset måste
+// omsluta nuet oavsett när någon råkar öppna appen: det börjar två timmar bakåt
+// och håller på i tolv. Öppnar du demon på kvällen sträcker det sig därmed över
+// midnatt, precis som ett riktigt pass. Passet är daterat sin STARTDAG.
+const demoStart = new Date(Date.now() - 2 * 60 * 60 * 1000)
+demoStart.setMinutes(demoStart.getMinutes() < 30 ? 0 : 30, 0, 0)
+const demoSlut = new Date(demoStart.getTime() + 12 * 60 * 60 * 1000)
+
+// pass1 är daterat i historien och finns kvar för att adminpanelens rapportvy
+// ska ha en färdig, sammanställd rapport att visa.
 const pass = [
-  { id: 'pass1', objekt_id: 'o1', datum: '2026-08-07',        starttid: '14:30', sluttid: '03:00', status: 'granskas' },
-  { id: 'pass2', objekt_id: 'o1', datum: verksamhetsdatum(),  starttid: '14:30', sluttid: null,    status: 'oppet' }
+  { id: 'pass1', objekt_id: 'o1', datum: '2026-08-07', starttid: '14:30', sluttid: '03:00', status: 'granskas' },
+  {
+    id: 'pass2', objekt_id: 'o1', datum: localISO(demoStart),
+    starttid: nowHHMM(demoStart), sluttid: nowHHMM(demoSlut), status: 'oppet'
+  }
 ]
 
 // Bemanningen styr vem som kommer åt passloggen. ZÄEM och MOBO är bemannade
