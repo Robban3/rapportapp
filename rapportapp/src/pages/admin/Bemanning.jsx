@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   listObjects, openPassForObjekt, passForObjektDatum, setPassTider,
   rosterForPass, setRosterEntry, removeRosterEntry, staffForObjekt,
@@ -34,8 +34,16 @@ export default function Bemanning() {
       .catch(setLaddfel)
   }, [])
 
+  // Vilket objekt+datum som senast begärdes. Utan den kan ett långsamt svar
+  // för det förra objektet skriva över ett snabbare för det nya, så att admin
+  // bemannar fel pass — och bemanningen är åtkomstkontrollen.
+  const senasteBegaran = useRef(0)
+
   const ladda = useCallback(async () => {
     if (!objektId || !datum) return
+    const min = ++senasteBegaran.current
+    const aktuell = () => senasteBegaran.current === min
+
     setLaddfel(null)
     setFel('')
     setPass(null)
@@ -45,6 +53,8 @@ export default function Bemanning() {
         staffForObjekt(objektId),
         senasteBemannadePass(objektId, datum)
       ])
+      if (!aktuell()) return
+
       setPersonal(kopplade)
       setForra(tidigare)
 
@@ -54,11 +64,15 @@ export default function Bemanning() {
         setTider({ starttid: tidigare?.pass.starttid || '', sluttid: '' })
         return
       }
+
+      const rader = await rosterForPass(p.id)
+      if (!aktuell()) return
+
       setPass(p)
       setTider({ starttid: p.starttid || '', sluttid: p.sluttid || '' })
-      setRoster(await rosterForPass(p.id))
+      setRoster(rader)
     } catch (f) {
-      setLaddfel(f)
+      if (aktuell()) setLaddfel(f)
     }
   }, [objektId, datum])
 
@@ -81,8 +95,10 @@ export default function Bemanning() {
     const p = await openPassForObjekt(objektId, datum, tider.starttid || undefined)
     // Sluttiden från förra passet följer med — nästan alla pass på ett objekt
     // har samma tider, och utan sluttid vet appen inte när passet är slut.
-    if (forra?.pass.sluttid) await setPassTider(p.id, { starttid: p.starttid, sluttid: forra.pass.sluttid })
-    const uppdaterat = await passForObjektDatum(objektId, datum)
+    // Starttiden utelämnas medvetet: utelämnat betyder oförändrat.
+    const uppdaterat = forra?.pass.sluttid
+      ? await setPassTider(p.id, { sluttid: forra.pass.sluttid })
+      : p
     setPass(uppdaterat)
     setTider({ starttid: uppdaterat.starttid || '', sluttid: uppdaterat.sluttid || '' })
     setRoster(await rosterForPass(uppdaterat.id))
