@@ -442,8 +442,14 @@ export async function addEntry({ passId, personalId, tid, meddelande, incidentTy
   const text = String(meddelande || '').trim()
   if (!text) throw new ApiError('Inlägget saknar text.', { kod: 'tom_text' })
 
-  const angivenTid = normalizeTid(tid) ?? normalizeTid(nowHHMM())
-  if (!angivenTid) throw new ApiError('Tiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+  // Tom tid betyder "nu" — bekvämt för ett inlägg som skrivs i stunden. Men en
+  // tid som ANGETTS och inte går att tolka ska kasta, inte tyst bli klockan nu:
+  // inlägget hamnar då på fel plats i rapporten utan att någon märker det.
+  // Samma regel som openPassForObjekt. Tidigare gjorde `?? normalizeTid(nowHHMM())`
+  // kontrollen på raden under oåtkomlig, eftersom nu-tiden alltid går att tolka.
+  const rat = String(tid ?? '').trim()
+  const angivenTid = rat === '' ? nowHHMM() : normalizeTid(rat)
+  if (!angivenTid) throw new ApiError('Tiden går inte att tolka. Skriv den som HH:MM, t.ex. 21:05.', { kod: 'ogiltig_tid' })
 
   // Spärren finns även i UI:t, men den är beroende av att pollningen hunnit
   // uppdatera passet. En låst rapport ska inte kunna växa på grund av en
