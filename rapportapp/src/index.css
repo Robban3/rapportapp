@@ -131,6 +131,12 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-r
 .table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
 .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:inline-grid;place-items:center;font-size:9px;font-weight:800;}
 .linkbtn{color:var(--accent);font-weight:700;background:none;border:none;font-size:13px;}
+.linkbtn:disabled{color:var(--dim);cursor:default;}
+/* Kompakta fält inne i tabellrader — bemanningens tider och roller. */
+.table select,.tid-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:6px 8px;font-size:12.5px;color:var(--ink);font-family:inherit;max-width:130px;}
+.tid-cell{font-family:var(--mono);font-weight:700;width:78px;text-align:center;}
+.table select:disabled,.tid-cell:disabled{opacity:.55;}
 .form-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;}
 .form-row .field{margin:0;flex:1;min-width:120px;}
 .obj-check{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;font-size:13px;font-weight:600;}

@@ -26,7 +26,11 @@ Testkoder:
 | 4444 | Ordningsvakt | MOBO     |
 | 0000 | Admin        | ADM      |
 
-Logga in som **0000** för att nå adminpanelen (granska rapport + Personal & behörighet).
+Logga in som **0000** för att nå adminpanelen (granska rapport, Bemanning, Personal & behörighet).
+
+I demoläget är **ZÄEM** och **MOBO** bemannade på dagens pass på Clarion Draken, medan
+**VARO** och **PESA** är kopplade till objektet men inte bemannade — logga in som 2222
+för att se hur en obemannad person möts.
 
 ## Koppla Supabase (skarp data)
 
@@ -52,15 +56,35 @@ src/
   state/session.jsx# inloggad personal
   pages/
     Login.jsx      # inloggning med personlig kod
-    Objects.jsx    # objektlista — visar BARA kopplade objekt
+    Objects.jsx    # objektlista — kopplade objekt, med bemanningsstatus
     ShiftLog.jsx   # passlogg, fria inlägg, delad i realtid (polling)
     admin/
       Admin.jsx      # adminlayout + routing
       ReviewList.jsx # pass att granska / skickade
       ReportDetail.jsx # sammanställd rapport + skicka
+      Bemanning.jsx  # lägg upp pass + bemanna det (styr åtkomst)
       Staff.jsx      # personal & behörighet (koppla objekt)
 supabase/schema.sql  # databasschema + seed
 ```
+
+## Behörighet — två nivåer
+
+| Nivå | Tabell | Sätts i | Styr |
+|------|--------|---------|------|
+| Objekt | `personal_objekt` | Personal & behörighet | Vilka objekt personen ser och **får** bemannas på |
+| Pass | `pass_personal` | Bemanning | Vem som **faktiskt** kommer åt passloggen för ett objekt ett datum |
+
+Objektkopplingen ensam ger alltså ingen åtkomst till någon logg. Admin lägger upp passet
+under **Bemanning** (objekt + datum + starttid) och bockar in vilka som jobbar det; först då
+kan de skriva och läsa. Passet skapas aldrig av personalen — `passForStaff()` hämtar bara,
+`openPassForObjekt()` skapar och anropas enbart från adminpanelen.
+
+Starttiden är inte kosmetisk: `sortKey()` räknar inläggens ordning från den, så ändras den
+i efterhand räknar `setPassTider()` om `sortnyckel` för passets alla inlägg.
+
+> **Obs:** spärren ligger i klienten så länge inloggningen sker med personlig kod i
+> datalagret. För skarp drift måste den upprätthållas med RLS — se de färdiga
+> policy-exemplen i `supabase/schema.sql`.
 
 ## Datamodell (kort)
 
@@ -79,7 +103,8 @@ så ingen manuell ifyllnad krävs vid pass-slut.
   PDF (t.ex. med en HTML-mall) och skickar via Resend/Postmark/SES.
 - **Riktig autentisering:** demon loggar in via personlig kod i datalagret. För skarp
   drift, byt till Supabase Auth och aktivera RLS-policyerna i `schema.sql`
-  (kommenterade som utgångspunkt) så objekt-behörigheten upprätthålls i databasen.
+  (kommenterade som utgångspunkt) så objekt- och bemanningsspärren upprätthålls i
+  databasen i stället för bara i klienten.
 - **Realtid:** `ShiftLog.jsx` pollar var 5:e sekund. Byt till Supabase Realtime
   (`supabase.channel(...)`) för direktuppdatering när flera skriver samtidigt.
 - **Offline-kö:** service workern cachar skalet; lägg till en utgående kö för inlägg
