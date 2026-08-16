@@ -159,8 +159,11 @@ export function passFonster({ datum, starttid, sluttid } = {}) {
   const startMinut = toMinutes(starttid)
   const giltig = startMinut !== null && !Number.isNaN(dag.getTime())
 
+  // Datumet byggs även för ett ogiltigt pass, så anroparen får ett objekt att
+  // läsa `giltig` ur. Värdena i det är då meningslösa — och det ska synas här,
+  // inte döljas bakom ett tyst `?? 0` som får midnatt att se avsiktligt ut.
   const start = new Date(dag.getTime())
-  start.setMinutes(startMinut ?? 0)
+  start.setMinutes(giltig ? startMinut : 0)
 
   const slutMinut = toMinutes(sluttid)
   if (slutMinut === null) {

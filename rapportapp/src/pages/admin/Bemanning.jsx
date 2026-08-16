@@ -214,13 +214,21 @@ export default function Bemanning() {
           {/* Midnatt är den vanligaste källan till förvirring här: passet är
               daterat sin startdag, så ett pass 14:30–03:00 den 16:e slutar
               kl 03:00 den 17:e — men allt ligger kvar i 16:e:s rapport. */}
-          {fonster?.overMidnatt && (
+          {/* Adminpanelen är enda stället som läser passfönstret utan att först
+              ha gått via arPassAktivt, så det är här ett otolkbart pass måste
+              synas — annars är det tyst precis där det går att rätta. */}
+          {fonster && !fonster.giltig && (
+            <div className="err" role="alert" style={{ height: 'auto', margin: '4px 0 10px' }}>
+              Passets tider går inte att tolka, så ingen kommer åt loggen. Skriv dem som HH:MM och spara.
+            </div>
+          )}
+          {fonster?.giltig && fonster.overMidnatt && (
             <div className="inc-hint">
               Går över midnatt: börjar {pass.starttid} den {pass.datum} och slutar {pass.sluttid} dagen efter.
               Allt hamnar i samma rapport, daterad {pass.datum}.
             </div>
           )}
-          {fonster?.oppetSlut && (
+          {fonster?.giltig && fonster.oppetSlut && (
             <div className="inc-hint">
               Ingen sluttid satt — passet räknas som öppet ett dygn från starten. Sätt sluttiden,
               så vet appen när loggen ska stängas för personalen.

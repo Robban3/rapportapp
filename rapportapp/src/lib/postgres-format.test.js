@@ -70,6 +70,18 @@ describe('otolkbara tider tystas inte', () => {
     expect(await passForObjektDatum('o2', '2027-01-05')).toBeNull()
   })
 
+  it('stämplar inte tyst klockan nu när ett inläggs tid är skräp', async () => {
+    const pass = await openPassForObjekt('o2', '2027-01-07', '20:00')
+    await setRosterEntry(pass.id, 'p1', { roll: 'Värd' })
+
+    await expect(addEntry({ passId: pass.id, personalId: 'p1', tid: 'i går kväll', meddelande: 'Rond', passStartTid: '20:00' }))
+      .rejects.toThrow(/går inte att tolka/)
+
+    // Tom tid betyder däremot fortfarande "nu" — det är avsikten, inte ett fel.
+    const nu = await addEntry({ passId: pass.id, personalId: 'p1', tid: '', meddelande: 'Rond', passStartTid: '20:00' })
+    expect(nu.tid).toMatch(/^\d{2}:\d{2}$/)
+  })
+
   it('avvisar intervall som passets tider men tillåter dem i inlägg', async () => {
     const pass = await openPassForObjekt('o2', '2027-01-06', '20:00')
     await expect(setPassTider(pass.id, { sluttid: '04:00-05:00' })).rejects.toThrow(/går inte att tolka/)
