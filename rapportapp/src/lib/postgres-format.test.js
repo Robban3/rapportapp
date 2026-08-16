@@ -62,6 +62,16 @@ describe('otolkbara tider tystas inte', () => {
     expect(arPassAktivt(trasigt, new Date('2026-08-16T12:00:00'))).toBe(false)
   })
 
+  it('flyttar inte ett trasigt datum till den 1:a i månaden', () => {
+    // `(dag || 1)` gjorde tidigare varje oläsbar dagdel tyst till en etta.
+    for (const datum of ['', 'i morgon', '2026-08', '2026-8-16', '2026-08-16T00:00:00', undefined]) {
+      expect(passFonster({ datum, starttid: '14:30', sluttid: '03:00' }).giltig).toBe(false)
+    }
+    // Och ett datum som inte finns rullar inte över till nästa månad.
+    expect(passFonster({ datum: '2026-02-31', starttid: '14:30' }).giltig).toBe(false)
+    expect(passFonster({ datum: '2026-08-16', starttid: '14:30' }).giltig).toBe(true)
+  })
+
   it('kastar i stället för att stämpla klockan nu när starttiden är skräp', async () => {
     await expect(openPassForObjekt('o2', '2027-01-05', 'kl 8 på kvällen'))
       .rejects.toThrow(/går inte att tolka/)
