@@ -133,10 +133,24 @@ export function todayISO(d = new Date()) {
   return localISO(d)
 }
 
-/** 'YYYY-MM-DD' till en lokal Date vid midnatt. `new Date(datum)` tolkar UTC. */
+/**
+ * 'YYYY-MM-DD' till en lokal Date vid midnatt. `new Date(datum)` tolkar UTC.
+ *
+ * Otolkbart datum ger en ogiltig Date, som passFonster fångar med `giltig`.
+ * Tidigare fyllde `(manad || 1)` och `(dag || 1)` i ettor för delar som inte
+ * gick att läsa, så ett trasigt datum blev tyst den 1:a i månaden.
+ */
 function datumTillDate(datum) {
-  const [ar, manad, dag] = String(datum).split('-').map(Number)
-  return new Date(ar, (manad || 1) - 1, dag || 1)
+  const delar = String(datum ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!delar) return new Date(NaN)
+
+  const [, ar, manad, dag] = delar.map(Number)
+  const d = new Date(ar, manad - 1, dag)
+
+  // JS rullar över tyst: new Date(2026, 1, 31) blir 3 mars. Ett datum som inte
+  // finns ska vara ogiltigt, inte flyttas.
+  const rullatOver = d.getFullYear() !== ar || d.getMonth() !== manad - 1 || d.getDate() !== dag
+  return rullatOver ? new Date(NaN) : d
 }
 
 /**

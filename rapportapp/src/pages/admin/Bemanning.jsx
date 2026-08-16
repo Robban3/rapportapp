@@ -92,7 +92,10 @@ export default function Bemanning() {
   }
 
   const laggUppPass = () => kor(async () => {
-    const p = await openPassForObjekt(objektId, datum, tider.starttid || undefined)
+    // Starttiden skickas rakt igenom. `|| undefined` här hade fallit tillbaka
+    // på klockan nu, vilket är fel för ett pass som läggs upp i förväg — och
+    // starttiden styr både sortering och när loggen öppnar.
+    const p = await openPassForObjekt(objektId, datum, tider.starttid)
     // Sluttiden från förra passet följer med — nästan alla pass på ett objekt
     // har samma tider, och utan sluttid vet appen inte när passet är slut.
     // Starttiden utelämnas medvetet: utelämnat betyder oförändrat.
@@ -189,7 +192,7 @@ export default function Bemanning() {
               <input id="bem-start-ny" value={tider.starttid} placeholder="14:30"
                 onChange={(e) => setTider({ ...tider, starttid: e.target.value })} />
             </div>
-            <button className="btn primary" onClick={laggUppPass} disabled={busy}>
+            <button className="btn primary" onClick={laggUppPass} disabled={busy || !tider.starttid.trim()}>
               {busy ? 'Lägger upp…' : 'Lägg upp passet'}
             </button>
           </div>
