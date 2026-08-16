@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { objectsForStaff, aktivtPassForStaff, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
+import { objectsForStaff, aktivtPassForStaff, passById, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
 import { useSession } from '../state/session.jsx'
 import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
@@ -79,13 +79,26 @@ export default function ShiftLog() {
   // Hämta inlägg och polla för kollegornas inlägg. Pausar när fliken är dold
   // eller enheten är offline — tidigare gick det 720 anrop i timmen per
   // enhet oavsett om någon tittade.
+  //
+  // Passet hämtas om i samma svep. Tidigare lästes det bara vid sidladdning,
+  // så en rapport som admin låste mitt i passet lämnade skrivfältet aktivt
+  // och inläggen fortsatte fylla på en redan skickad rapport.
+  // Effekten hänger på passets ID, inte på passobjektet: load() sätter om
+  // passet, och ett nytt objekt varje poll hade startat om intervallet i en
+  // oändlig loop.
+  const passId = pass?.id
   useEffect(() => {
-    if (!pass) return
+    if (!passId) return
     let levande = true
 
     const load = () => {
       if (document.hidden || !navigator.onLine) return
-      entriesForPass(pass.id)
+
+      passById(passId)
+        .then((farskt) => { if (levande && farskt) setPass(farskt) })
+        .catch(() => { /* tyst: nästa poll försöker igen */ })
+
+      entriesForPass(passId)
         .then((e) => { if (levande) setEntries(e) })
         .catch(() => { /* tyst: nästa poll försöker igen, inget går förlorat */ })
     }
@@ -103,7 +116,7 @@ export default function ShiftLog() {
       window.removeEventListener('online', load)
       window.removeEventListener('focus', load)
     }
-  }, [pass])
+  }, [passId])
 
   async function send() {
     if (!msg.trim() || !pass || busy) return

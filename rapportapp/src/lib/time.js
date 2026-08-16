@@ -26,7 +26,10 @@ export const BRYTPUNKT_TIMME = 5
 function parseKlockslag(text) {
   const t = String(text).trim()
 
-  const medSeparator = t.match(/^(\d{1,2})[:.](\d{2})$/)
+  // Sekunddelen är valfri: Postgres `time`-kolumner kommer tillbaka som
+  // "14:30:00" via PostgREST. Utan den här grenen blev varje pass som lästes
+  // ur databasen otolkbart, och både passfönstret och sorteringen föll ihop.
+  const medSeparator = t.match(/^(\d{1,2})[:.](\d{2})(?:[:.]\d{2}(?:\.\d+)?)?$/)
   if (medSeparator) return validera(+medSeparator[1], +medSeparator[2])
 
   // "930" → 09:30, "2045" → 20:45. Tidigare tolkades "930" som timme 93.
@@ -76,6 +79,17 @@ export function normalizeTid(tid) {
   if (minuter.some((m) => m === null)) return null
 
   return minuter.map(hhmm).join('-')
+}
+
+/**
+ * Ett enskilt klockslag. Till skillnad från `normalizeTid` tillåts INTE
+ * intervall: ett inlägg får gärna stå "20:45-21:30", men ett pass start- och
+ * sluttid måste vara enkla klockslag — annars går de inte att lagra i en
+ * time-kolumn och Postgres svarar 22P02 bakom ett generiskt fel.
+ */
+export function normalizeKlockslag(tid) {
+  const minuter = parseKlockslag(String(tid ?? '').trim())
+  return minuter === null ? null : hhmm(minuter)
 }
 
 function hhmm(minuter) {
@@ -135,19 +149,24 @@ function datumTillDate(datum) {
  * brytpunkt eftersom passet bär sina egna tider.
  *
  * Saknas sluttid är passet öppet och löper ett dygn från starten.
+ *
+ * `giltig` är false om starttiden eller datumet inte går att tolka. Tidigare
+ * sattes starten tyst till midnatt i det läget, vilket gjorde att ett trasigt
+ * pass såg fullt normalt ut och bara betedde sig fel.
  */
 export function passFonster({ datum, starttid, sluttid } = {}) {
   const dag = datumTillDate(datum)
-  const startMinut = toMinutes(starttid) ?? 0
+  const startMinut = toMinutes(starttid)
+  const giltig = startMinut !== null && !Number.isNaN(dag.getTime())
 
   const start = new Date(dag.getTime())
-  start.setMinutes(startMinut)
+  start.setMinutes(startMinut ?? 0)
 
   const slutMinut = toMinutes(sluttid)
   if (slutMinut === null) {
     const slut = new Date(start.getTime())
     slut.setDate(slut.getDate() + 1)
-    return { start, slut, overMidnatt: false, oppetSlut: true }
+    return { start, slut, overMidnatt: false, oppetSlut: true, giltig }
   }
 
   const overMidnatt = slutMinut <= startMinut
@@ -155,16 +174,22 @@ export function passFonster({ datum, starttid, sluttid } = {}) {
   slut.setMinutes(slutMinut)
   if (overMidnatt) slut.setDate(slut.getDate() + 1)
 
-  return { start, slut, overMidnatt, oppetSlut: false }
+  return { start, slut, overMidnatt, oppetSlut: false, giltig }
 }
 
 /**
  * Är passet igång just nu? Toleransen i båda ändar gör att den som kommer en
  * kvart tidigt, eller skriver sitt sista inlägg strax efter sluttiden, inte
  * låses ute.
+ *
+ * Ett pass med otolkbara tider räknas som INTE igång. Funktionen är en
+ * åtkomstgrind, och en grind som inte vet ska hålla stängt hellre än att
+ * släppa in alla på ett godtyckligt midnattsfönster.
  */
 export function arPassAktivt(pass, nu = new Date()) {
-  const { start, slut } = passFonster(pass)
+  const { start, slut, giltig } = passFonster(pass)
+  if (!giltig) return false
+
   const tid = nu.getTime()
   return tid >= start.getTime() - TIDIG_TOLERANS * 60000
       && tid <= slut.getTime() + SEN_TOLERANS * 60000

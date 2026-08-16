@@ -8,7 +8,10 @@
 
 import { hasSupabase, supabase } from './supabase.js'
 import { db } from './mockStore.js'
-import { sortKey, nowHHMM, normalizeTid, verksamhetsdatum, localISO, passFonster, arPassAktivt } from './time.js'
+import {
+  sortKey, nowHHMM, normalizeTid, normalizeKlockslag, verksamhetsdatum,
+  localISO, passFonster, arPassAktivt
+} from './time.js'
 import { emptyStats, INCIDENT_TYPES } from './incidents.js'
 import { ApiError, kastaVidFel, kravRad } from './errors.js'
 
@@ -57,7 +60,14 @@ export async function openPassForObjekt(objektId, datum = verksamhetsdatum(), st
   // den, så ett nattpass som fått fel starttid lägger inläggen efter midnatt
   // först i rapporten. Lägger admin upp passet i förväg måste tiden därför
   // gå att ange i stället för att stämplas med "nu".
-  const start = normalizeTid(starttid) ?? nowHHMM()
+  //
+  // Otolkbar tid kastar i stället för att tyst bli klockan nu — setPassTider
+  // kastade redan för samma indata, och två olika svar på samma fel är värre
+  // än båda felen var för sig.
+  const start = normalizeKlockslag(starttid)
+  if (!start) {
+    throw new ApiError('Starttiden går inte att tolka. Skriv den som HH:MM, t.ex. 14:30.', { kod: 'ogiltig_tid' })
+  }
 
   if (!hasSupabase) {
     let p = db.pass.find((x) => x.objekt_id === objektId && x.datum === datum)
@@ -99,16 +109,22 @@ export async function openPassForObjekt(objektId, datum = verksamhetsdatum(), st
  * Inläggens `sortnyckel` räknas ut mot starttiden när de skrivs, så en ändrad
  * starttid måste räkna om dem. Utan omräkningen skulle en rättad starttid ge
  * en rapport där inläggen ligger i fel ordning utan att något syns fel.
+ *
+ * Ett fält som INTE skickas med lämnas orört. Tidigare nollades det i stället,
+ * så ett anrop med bara sluttid tog bort starttiden — och därmed ankaret som
+ * håller inläggen efter midnatt sist i rapporten. Skicka tom sträng för att
+ * medvetet rensa sluttiden.
  */
-export async function setPassTider(passId, { starttid = null, sluttid = null } = {}) {
-  const start = starttid ? normalizeTid(starttid) : null
-  const slut = sluttid ? normalizeTid(sluttid) : null
-  if (starttid && !start) throw new ApiError('Starttiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
-  if (sluttid && !slut) throw new ApiError('Sluttiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+export async function setPassTider(passId, tider = {}) {
+  const nuvarande = await passById(passId)
+  if (!nuvarande) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
+
+  const start = losTid(tider, 'starttid', nuvarande.starttid, 'Starttiden')
+  const slut = losTid(tider, 'sluttid', nuvarande.sluttid, 'Sluttiden')
+  if (!start) throw new ApiError('Passet måste ha en starttid. Skriv den som HH:MM, t.ex. 14:30.', { kod: 'ogiltig_tid' })
 
   if (!hasSupabase) {
     const p = db.pass.find((x) => x.id === passId)
-    if (!p) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
     p.starttid = start
     p.sluttid = slut
     for (const i of db.inlagg) {
@@ -139,6 +155,28 @@ export async function setPassTider(passId, { starttid = null, sluttid = null } =
 // `personal_objekt` säger vilka objekt en person FÅR bemannas på.
 // `pass_personal` säger vilka som FAKTISKT jobbar ett visst pass, och det är
 // den som avgör vem som kommer åt passloggen.
+
+/** Ett pass på id. Skapar inget. */
+export async function passById(passId) {
+  if (!hasSupabase) return clone(db.pass.find((p) => p.id === passId) || null)
+  const svar = await supabase.from('pass').select('*').eq('id', passId).maybeSingle()
+  return kastaVidFel(svar, 'hämta passet') || null
+}
+
+/**
+ * Läser ut ett tidsfält ur ett delvis ifyllt anrop.
+ *
+ * Utelämnat (`undefined`) betyder oförändrat, tom sträng eller null betyder
+ * rensa, och allt annat måste gå att tolka som ett klockslag.
+ */
+function losTid(tider, falt, nuvarande, etikett) {
+  if (!(falt in tider) || tider[falt] === undefined) return nuvarande || null
+  if (tider[falt] === null || String(tider[falt]).trim() === '') return null
+
+  const tolkad = normalizeKlockslag(tider[falt])
+  if (!tolkad) throw new ApiError(`${etikett} går inte att tolka. Skriv den som HH:MM, t.ex. 14:30.`, { kod: 'ogiltig_tid' })
+  return tolkad
+}
 
 /** Passet för objekt+datum, eller null. Skapar inget — det gör openPassForObjekt. */
 export async function passForObjektDatum(objektId, datum) {
@@ -177,13 +215,17 @@ export async function passForStaff(personalId, objektId, datum = verksamhetsdatu
 
 /**
  * Datumen ett pågående pass kan vara daterat. Ett pass bär sin STARTDAG, så
- * kl 02:00 jobbar man i gårdagens pass — därför räcker det att titta på i går
- * och i dag oavsett hur sent på natten det är.
+ * kl 02:00 jobbar man i gårdagens pass.
+ *
+ * I morgon är med för den tidiga toleransens skull: kl 23:45 ska ett pass som
+ * börjar 00:30 redan gå att öppna, och det är daterat nästa dygn.
  */
 function aktuellaDatum(nu = new Date()) {
   const igar = new Date(nu.getTime())
   igar.setDate(igar.getDate() - 1)
-  return [localISO(igar), localISO(nu)]
+  const imorgon = new Date(nu.getTime())
+  imorgon.setDate(imorgon.getDate() + 1)
+  return [localISO(igar), localISO(nu), localISO(imorgon)]
 }
 
 /** Passen på ett objekt som kan vara igång nu, oavsett bemanning. */
@@ -291,8 +333,9 @@ export async function setRosterEntry(passId, personalId, { roll = null, tid_in =
   if (!passId || !personalId) throw new ApiError('Pass och person måste anges.', { kod: 'ofullstandig' })
 
   // Tomma tider är tillåtna — de fylls ofta i först när passet är slut.
-  const inTid = tid_in ? normalizeTid(tid_in) : null
-  const utTid = tid_ut ? normalizeTid(tid_ut) : null
+  // Ett intervall vore däremot meningslöst här: man går på ett klockslag.
+  const inTid = tid_in ? normalizeKlockslag(tid_in) : null
+  const utTid = tid_ut ? normalizeKlockslag(tid_ut) : null
   if (tid_in && !inTid) throw new ApiError('Tiden in går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
   if (tid_ut && !utTid) throw new ApiError('Tiden ut går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
 
@@ -401,6 +444,15 @@ export async function addEntry({ passId, personalId, tid, meddelande, incidentTy
 
   const angivenTid = normalizeTid(tid) ?? normalizeTid(nowHHMM())
   if (!angivenTid) throw new ApiError('Tiden går inte att tolka. Skriv den som HH:MM.', { kod: 'ogiltig_tid' })
+
+  // Spärren finns även i UI:t, men den är beroende av att pollningen hunnit
+  // uppdatera passet. En låst rapport ska inte kunna växa på grund av en
+  // kapplöpning — rättelser läggs till av admin.
+  const passet = await passById(passId)
+  if (!passet) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
+  if (passet.status === 'skickat') {
+    throw new ApiError('Passet är låst och rapporten skickad. Be en administratör lägga till rättelsen.', { kod: 'last' })
+  }
 
   const row = {
     pass_id: passId, personal_id: personalId, tid: angivenTid,
