@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { objectsForStaff, objektStatusForStaff } from '../lib/api.js'
-import { useSession } from '../state/session.jsx'
+import { useSession } from '../state/sessionCtx.js'
 import Feltillstand from '../components/Feltillstand.jsx'
 
 const STATUSTEXT = {

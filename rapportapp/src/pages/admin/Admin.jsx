@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Link, useNavigate } from 'react-router-dom'
-import { useSession } from '../../state/session.jsx'
+import { useSession } from '../../state/sessionCtx.js'
 import { DemoBanner } from '../../App.jsx'
 import ReviewList from './ReviewList.jsx'
 import ReportDetail from './ReportDetail.jsx'

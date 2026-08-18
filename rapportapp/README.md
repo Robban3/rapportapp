@@ -111,7 +111,9 @@ src/
     utkorg.js      # kö för inlägg som skrivs utan nät
     realtid.js     # prenumeration på passet (Supabase Realtime)
     tema.js        # ljust/mörkt läge
-  state/session.jsx# inloggad personal
+  state/
+    session.jsx    # inloggad personal (provider)
+    sessionCtx.js  # kontexten + useSession
   pages/
     Login.jsx      # inloggning via Supabase Auth (e-post + lösenord)
     Objects.jsx    # objektlista — kopplade objekt, med bemanningsstatus
@@ -128,6 +130,35 @@ supabase/
   migrations/        # körs i ordning mot databasen
   seed.sql           # demodata för lokal utveckling
 ```
+
+## Tester
+
+```bash
+npm test          # allt, en gång
+npm run test:watch
+```
+
+Kör dem från `rapportapp/`. Tidszonen är låst till `Europe/Stockholm` i
+`vite.config.js` — testerna för verksamhetsdygn och nattpass är meningslösa om de
+körs i UTC.
+
+Vad som täcks:
+
+| Fil | Vad det handlar om |
+| --- | --- |
+| `lib/time.test.js` | tidsparsning, sortnyckel, passfönster över midnatt |
+| `lib/bemanning.test.js` | vem som kommer åt passloggen, och när |
+| `lib/objekt.test.js` | objektfält, objektkod, rapportmottagare |
+| `lib/auth.test.js` | inloggning och utloggning |
+| `lib/postgres-format.test.js` | att appen tål databasens format (t.ex. `14:30:00`) |
+| `lib/rattelser.test.js` | ordning, statistik och spärrar för rättelser |
+| `lib/utkorg.test.js` | offlinekön: ordning, omskick, nekade inlägg |
+| `lib/realtid.test.js` | vad prenumerationen beställer, och när den räknas som uppe |
+| `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
+| `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
+
+Databasens regler testas inte härifrån. RLS-policyerna är verifierade separat mot
+en riktig Postgres (se *Spärren ligger i databasen*).
 
 ## Mörkt läge
 

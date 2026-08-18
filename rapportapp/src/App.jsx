@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
-import { useSession } from './state/session.jsx'
+import { useSession } from './state/sessionCtx.js'
 import { hasSupabase } from './lib/supabase.js'
 import Login from './pages/Login.jsx'
 import Objects from './pages/Objects.jsx'

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signIn } from '../lib/api.js'
 import { hasSupabase } from '../lib/supabase.js'
-import { useSession } from '../state/session.jsx'
+import { useSession } from '../state/sessionCtx.js'
 import { felText } from '../lib/errors.js'
 
 export default function Login() {

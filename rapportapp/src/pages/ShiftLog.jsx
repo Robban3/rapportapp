@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { objectsForStaff, aktivtPassForStaff, passById, entriesForPass, addEntry, INCIDENT_TYPES } from '../lib/api.js'
-import { useSession } from '../state/session.jsx'
+import { useSession } from '../state/sessionCtx.js'
 import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
 import { koFor, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel } from '../lib/utkorg.js'

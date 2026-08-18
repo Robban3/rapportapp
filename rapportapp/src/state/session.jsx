@@ -1,13 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { hasSupabase } from '../lib/supabase.js'
 import { aktuellPersonal, signOut as apiSignOut, onAuthChange } from '../lib/api.js'
+import { SessionCtx } from './sessionCtx.js'
 
 // Vem som är inloggad.
 //
 // Mot Supabase äger auth-klienten sessionen och förnyar token själv; vi speglar
 // bara personalraden hit. I demoläget finns ingen autentisering alls, och då
 // ligger valet kvar i localStorage precis som förut.
-const SessionCtx = createContext(null)
 const KEY = 'rapportapp.session'
 
 export function SessionProvider({ children }) {
@@ -52,5 +52,3 @@ export function SessionProvider({ children }) {
     </SessionCtx.Provider>
   )
 }
-
-export const useSession = () => useContext(SessionCtx)
