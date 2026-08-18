@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { listStaff, addStaff, listObjects, staffObjects, setStaffObjects } from '../../lib/api.js'
+import { listStaff, addStaff, listObjects, staffObjects, setStaffObjects, bjudInPersonal } from '../../lib/api.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 
@@ -14,6 +14,8 @@ export default function Staff() {
   const [formfel, setFormfel] = useState('')
   const [sparar, setSparar] = useState(false)
   const [linking, setLinking] = useState(null) // { person, selected:Set, sparar }
+  const [bjuder, setBjuder] = useState(null)   // personal-id som bjuds in just nu
+  const [inbjudan, setInbjudan] = useState('') // kvitto efter lyckad inbjudan
 
   const reload = useCallback(async () => {
     setLaddfel(null)
@@ -42,6 +44,22 @@ export default function Staff() {
       setFormfel(felText(fel))
     } finally {
       setSparar(false)
+    }
+  }
+
+  async function bjudIn(person) {
+    if (bjuder) return
+    setBjuder(person.id)
+    setFormfel('')
+    setInbjudan('')
+    try {
+      await bjudInPersonal(person.epost)
+      setInbjudan(`Inbjudan skickad till ${person.epost}.`)
+      await reload()
+    } catch (fel) {
+      setFormfel(felText(fel))
+    } finally {
+      setBjuder(null)
     }
   }
 
@@ -102,9 +120,14 @@ export default function Staff() {
                   {/* Utan kopplat konto kan personen inte logga in, hur rätt
                       allt annat än är. Det ska synas direkt i listan. */}
                   <td>
-                    {p.auth_user_id
-                      ? <span className="pill sent">Kopplat</span>
-                      : <span className="pill review">Ej inbjuden</span>}
+                    {p.auth_user_id ? (
+                      <span className="pill sent" style={{ marginLeft: 0 }}>Konto finns</span>
+                    ) : (
+                      <button className="linkbtn" disabled={!p.epost || bjuder === p.id}
+                        onClick={() => bjudIn(p)}>
+                        {bjuder === p.id ? 'Bjuder in…' : 'Bjud in →'}
+                      </button>
+                    )}
                   </td>
                   <td><button className="linkbtn" onClick={() => openLink(p)}>Koppla objekt →</button></td>
                 </tr>
@@ -142,6 +165,7 @@ export default function Staff() {
         </button>
       </form>
       {formfel && <div className="err" role="alert" style={{ height: 'auto', marginTop: 10 }}>{formfel}</div>}
+      {inbjudan && <div className="kvitto" role="status">{inbjudan}</div>}
 
       {linking && (
         <div className="modal-back">

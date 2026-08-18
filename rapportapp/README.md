@@ -44,10 +44,15 @@ ordning — antingen av GitHub-integrationen vid push, eller lokalt med
    `supabase link` och `supabase db push`.
 3. Kopiera `.env.example` till `.env.local` och fyll i `VITE_SUPABASE_URL` och
    `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
-4. Lägg upp personalen i adminpanelen med rätt e-post, och bjud in samma adresser
-   under **Authentication → Users**. Kopplingen sker automatiskt via en trigger,
-   oavsett i vilken ordning de två görs.
-5. Starta om `npm run dev`.
+4. Deploya Edge Function och sätt dess nyckel:
+   ```bash
+   supabase functions deploy bjud-in
+   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   # Project Settings → API
+   ```
+5. Lägg upp personalen under **Admin → Personal & behörighet** och tryck **Bjud in**.
+   Kopplingen mellan personalrad och auth-konto sker automatiskt via en trigger,
+   oavsett i vilken ordning de två skapas.
+6. Starta om `npm run dev`.
 
 Datalagret (`src/lib/api.js`) väljer backend själv: finns creds används Supabase,
 annars mock. UI:t är identiskt i båda lägena.
@@ -61,6 +66,25 @@ i `auth.users` och når aldrig klienten. Självregistrering är avstängd i `con
 Tidigare loggade appen in genom att slå upp en PIN i `personal`-tabellen. Eftersom
 anon-nyckeln ligger i JS-bundlen innebar det att vem som helst kunde läsa ut allas
 koder. `kod`-kolumnen finns inte längre.
+
+### Inbjudan sker i appen, inte i Supabase-dashboarden
+
+`supabase/functions/bjud-in` låter en admin bjuda in personal direkt från panelen.
+Att skapa konton kräver `service_role`-nyckeln, som går förbi all RLS och därför
+aldrig får ligga i webbläsaren — funktionen kör serversidan och kontrollerar först
+att anroparen verkligen är admin.
+
+Alternativet vore att bjuda in via dashboarden på supabase.com. Det kräver att varje
+app-administratör har ett Supabase-konto med projektåtkomst, alltså full läs- och
+skrivrätt till hela databasen förbi RLS. Poängen med behörighetsmodellen är att
+"admin i appen" och "ägare av databasen" ska kunna vara olika personer.
+
+> **Obs:** inbjudningsmejl kräver egen SMTP i Supabase. Det inbyggda utskicket har
+> hård kvot och är avsett för test. Utan SMTP svarar funktionen med felet från
+> Supabase i klartext i panelen.
+
+`supabase/functions/` deployas **inte** av GitHub-integrationen — den kör bara
+migrations. Kör `supabase functions deploy bjud-in` när funktionen ändras.
 
 ## Struktur
 

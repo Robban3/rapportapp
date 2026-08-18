@@ -147,6 +147,8 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-r
 .table select:disabled,.tid-cell:disabled{opacity:.55;}
 .form-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;}
 .form-row .field{margin:0;flex:1;min-width:120px;}
+.kvitto{margin-top:10px;font-size:13px;font-weight:700;color:var(--accent);
+  background:rgba(13,148,136,.1);border-radius:9px;padding:9px 12px;}
 .objekt-form{border-top:1px solid var(--border);margin-top:18px;padding-top:16px;}
 .objekt-form textarea{width:100%;background:var(--surface2);border:1px solid var(--border);
   border-radius:9px;padding:10px 12px;font-size:13px;color:var(--ink);font-family:inherit;resize:vertical;}

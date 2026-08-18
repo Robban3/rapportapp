@@ -594,6 +594,38 @@ export async function lockAndSend(passId, mottagare = []) {
   return { ok: true, mottagare, utskickat: false }
 }
 
+/**
+ * Bjuder in personen till Supabase Auth via Edge Function `bjud-in`.
+ *
+ * Anropet går inte direkt mot admin-API:t: det kräver service_role-nyckeln,
+ * som går förbi all RLS och därför aldrig får ligga i webbläsaren. Funktionen
+ * kontrollerar serversidan att anroparen är admin.
+ */
+export async function bjudInPersonal(epost) {
+  if (!hasSupabase) {
+    throw new ApiError(
+      'Inbjudan kräver ett kopplat Supabase-projekt. Demoläget har ingen autentisering.',
+      { kod: 'demolage' }
+    )
+  }
+
+  const { data, error } = await supabase.functions.invoke('bjud-in', {
+    body: { epost: String(epost || '').trim().toLowerCase() }
+  })
+
+  if (error) {
+    // Funktionens egna felmeddelanden ligger i svarskroppen, inte i
+    // error.message — utan det här får admin bara "non-2xx status code".
+    let text = 'Kunde inte skicka inbjudan.'
+    try {
+      const kropp = await error.context?.json()
+      if (kropp?.fel) text = kropp.fel
+    } catch { /* behåll standardtexten */ }
+    throw new ApiError(text, { orsak: error, kod: 'inbjudan' })
+  }
+  return data
+}
+
 // ----------------------------------------------- admin: personal & behörighet
 export async function listStaff() {
   if (!hasSupabase) return clone([...db.personal].sort((a, b) => a.initialer.localeCompare(b.initialer, 'sv')))
