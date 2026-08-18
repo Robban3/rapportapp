@@ -39,15 +39,17 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-r
 .btn:disabled{opacity:.5;cursor:default;}
 
 /* ---- Login ---- */
-.login{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;}
-.login h1{font-size:22px;margin:0;}
-.login .sub{color:var(--dim);font-size:13px;margin-bottom:8px;}
-.pin-dots{display:flex;gap:14px;margin:18px 0 22px;}
-.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);}
-.pin-dots i.on{background:var(--accent);}
-.keys{display:grid;grid-template-columns:repeat(3,72px);gap:14px;}
-.key{height:72px;border-radius:50%;background:var(--surface);border:1px solid var(--border);font-size:24px;font-weight:700;color:var(--ink);}
-.key.blank{background:none;border:none;}
+.login{max-width:370px;margin:7vh auto 0;padding:0 4px;}
+.login h1{font-size:24px;margin:0 0 4px;text-align:center;}
+.login .sub{color:var(--dim);font-size:13px;margin-bottom:20px;text-align:center;}
+.login-form{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;}
+.login-form .field{margin:0 0 14px;}
+/* 16px hindrar iOS/iPadOS från att zooma in vid fokus — på en surfplatta i
+   receptionen hoppar annars hela layouten när värden trycker i fältet. */
+.login-form input{font-size:16px;padding:12px 13px;}
+.login-hint{margin-top:16px;font-size:12px;color:var(--dim);line-height:1.65;
+  background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:11px 13px;}
+.login-hint b{color:var(--ink);font-weight:700;}
 .err{color:var(--alert);font-size:13px;font-weight:700;height:18px;}
 
 /* ---- Objektlista ---- */

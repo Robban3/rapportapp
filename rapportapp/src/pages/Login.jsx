@@ -1,87 +1,74 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signIn } from '../lib/api.js'
+import { hasSupabase } from '../lib/supabase.js'
 import { useSession } from '../state/session.jsx'
 import { felText } from '../lib/errors.js'
 
-// Koder får vara 4–8 tecken. Adminpanelen tillåter redan upp till 8, men
-// inloggningen kapade till 4 och skickade automatiskt — längre koder gick
-// därför aldrig att logga in med.
-const MIN_LANGD = 4
-const MAX_LANGD = 8
-
 export default function Login() {
-  const [code, setCode] = useState('')
+  const [epost, setEpost] = useState('')
+  const [losenord, setLosenord] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const { setStaff } = useSession()
   const nav = useNavigate()
 
-  // Tangentbordslyssnaren registreras en gång; utan ref skulle den se en
-  // inaktuell `code` i sin closure.
-  const codeRef = useRef('')
-  codeRef.current = code
-
-  const tryCode = useCallback(async (kod) => {
-    if (kod.length < MIN_LANGD) return
+  async function submit(e) {
+    e.preventDefault()
+    if (busy) return
     setBusy(true)
     setErr('')
     try {
-      const staff = await signIn(kod)
-      if (staff) {
-        setStaff(staff)
-        nav('/')
-      } else {
-        setErr('Fel kod')
-        setCode('')
+      const staff = await signIn(epost, losenord)
+      if (!staff) {
+        setErr('Fel e-post eller lösenord.')
+        return
       }
+      setStaff(staff)
+      nav('/')
     } catch (fel) {
-      // Utan detta fastnade knappsatsen tyst för alltid vid nätverksfel.
       setErr(felText(fel))
-      setCode('')
     } finally {
       setBusy(false)
     }
-  }, [nav, setStaff])
-
-  const press = useCallback((d) => {
-    if (busy) return
-    setErr('')
-    setCode((c) => (c.length >= MAX_LANGD ? c : c + d))
-  }, [busy])
-
-  const del = useCallback(() => setCode((c) => c.slice(0, -1)), [])
-
-  // Surfplattor har ofta tangentbord eller streckkodsläsare kopplade.
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key >= '0' && e.key <= '9') press(e.key)
-      else if (e.key === 'Backspace') del()
-      else if (e.key === 'Enter') tryCode(codeRef.current)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [press, del, tryCode])
+  }
 
   return (
     <div className="login">
       <h1>Rapportapp</h1>
-      <div className="sub">Ange din personliga kod</div>
-      <div className="pin-dots" role="status" aria-label={`${code.length} av minst ${MIN_LANGD} siffror inmatade`}>
-        {Array.from({ length: Math.max(MIN_LANGD, code.length) }, (_, i) => (
-          <i key={i} className={i < code.length ? 'on' : ''} />
-        ))}
-      </div>
-      <div className="err" role="alert" aria-live="assertive">{err}</div>
-      <div className="keys">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-          <button key={d} className="key" onClick={() => press(d)} disabled={busy}>{d}</button>
-        ))}
-        <button className="key blank" onClick={del} disabled={busy} aria-label="Radera">⌫</button>
-        <button className="key" onClick={() => press('0')} disabled={busy}>0</button>
-        <button className="key" onClick={() => tryCode(code)}
-          disabled={busy || code.length < MIN_LANGD} aria-label="Logga in">→</button>
-      </div>
+      <div className="sub">Logga in för att öppna passet</div>
+
+      <form className="login-form" onSubmit={submit}>
+        <div className="field">
+          <label htmlFor="login-epost">E-post</label>
+          {/* autoComplete gör att lösenordshanteraren fyller i åt värden —
+              på en delad surfplatta är det skillnaden mellan att logga in på
+              tio sekunder och att knappa in adressen med handskar på. */}
+          <input id="login-epost" type="email" value={epost} autoComplete="username"
+            inputMode="email" autoCapitalize="none" autoCorrect="off" required
+            onChange={(e) => setEpost(e.target.value)} />
+        </div>
+
+        <div className="field">
+          <label htmlFor="login-losenord">Lösenord</label>
+          <input id="login-losenord" type="password" value={losenord}
+            autoComplete="current-password" required
+            onChange={(e) => setLosenord(e.target.value)} />
+        </div>
+
+        <div className="err" role="alert" aria-live="assertive">{err}</div>
+
+        <button className="btn primary block" type="submit" disabled={busy}>
+          {busy ? 'Loggar in…' : 'Logga in'}
+        </button>
+      </form>
+
+      {!hasSupabase && (
+        <div className="login-hint">
+          Demoläge — lösenordet ignoreras. Prova <b>zaem@example.se</b> (bemannad värd),
+          <b> varo@example.se</b> (ej bemannad) eller <b>admin@example.se</b>.
+        </div>
+      )}
     </div>
   )
 }

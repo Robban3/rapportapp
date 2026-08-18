@@ -19,12 +19,64 @@ const clone = (x) => JSON.parse(JSON.stringify(x))
 const personalMed = (pid) => db.personal.find((p) => p.id === pid)
 
 // ------------------------------------------------------------------ auth
-export async function signIn(kod) {
+// Inloggningen sköts av Supabase Auth. Tidigare slogs en PIN upp direkt i
+// `personal`-tabellen, vilket innebar att anon-nyckeln — som ligger i
+// JS-bundlen — kunde läsa ut allas koder. Lösenordet bor nu i auth.users och
+// nås aldrig av klienten.
+
+/** Personalraden för den inloggade, eller null. */
+export async function aktuellPersonal() {
+  if (!hasSupabase) return null   // demoläget håller sessionen i localStorage
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const svar = await supabase.from('personal').select('*')
+    .eq('auth_user_id', user.id).eq('aktiv', true).maybeSingle()
+  return kastaVidFel(svar, 'hämta din profil') || null
+}
+
+export async function signIn(epost, losenord) {
+  const adress = String(epost || '').trim().toLowerCase()
+
   if (!hasSupabase) {
-    return clone(db.personal.find((p) => p.kod === String(kod).trim() && p.aktiv) || null)
+    // Demoläget har ingen autentisering: e-posten pekar ut vem du är,
+    // lösenordet ignoreras. Det finns ingen riktig data att skydda.
+    return clone(db.personal.find((p) => p.epost === adress && p.aktiv) || null)
   }
-  const svar = await supabase.from('personal').select('*').eq('kod', String(kod).trim()).eq('aktiv', true).maybeSingle()
-  return kastaVidFel(svar, 'logga in') || null
+
+  const { error } = await supabase.auth.signInWithPassword({ email: adress, password: losenord })
+  if (error) {
+    throw new ApiError(
+      error.message === 'Invalid login credentials'
+        ? 'Fel e-post eller lösenord.'
+        : 'Kunde inte logga in. Försök igen.',
+      { orsak: error, kod: 'inloggning' }
+    )
+  }
+
+  // Kontot finns i auth men saknar personalrad, eller är avaktiverat. Utan
+  // det här beskedet hade värden mötts av en tom objektlista utan förklaring.
+  const personal = await aktuellPersonal()
+  if (!personal) {
+    await supabase.auth.signOut()
+    throw new ApiError(
+      'Kontot är inte kopplat till någon personal. Be en administratör lägga upp dig.',
+      { kod: 'okopplad' }
+    )
+  }
+  return personal
+}
+
+export async function signOut() {
+  if (hasSupabase) await supabase.auth.signOut()
+}
+
+/** Kallas när Supabase byter sessionstillstånd (inloggning, utloggning, token-förnyelse). */
+export function onAuthChange(callback) {
+  if (!hasSupabase) return () => {}
+  const { data } = supabase.auth.onAuthStateChange(() => { callback() })
+  return () => data.subscription.unsubscribe()
 }
 
 // -------------------------------------------------------- objekt för person
@@ -549,15 +601,21 @@ export async function listStaff() {
   return kastaVidFel(svar, 'hämta personalen') || []
 }
 
-export async function addStaff({ namn, initialer, roll, kod }) {
-  const row = { namn: namn.trim(), initialer: initialer.trim(), roll, kod: kod.trim(), aktiv: true }
-  if (!row.namn || !row.initialer || !row.kod) {
-    throw new ApiError('Namn, initialer och kod måste fyllas i.', { kod: 'ofullstandig' })
+export async function addStaff({ namn, initialer, roll, epost }) {
+  const row = {
+    namn: String(namn || '').trim(), initialer: String(initialer || '').trim(),
+    roll, epost: String(epost || '').trim().toLowerCase(), aktiv: true
+  }
+  if (!row.namn || !row.initialer || !row.epost) {
+    throw new ApiError('Namn, signatur och e-post måste fyllas i.', { kod: 'ofullstandig' })
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.epost)) {
+    throw new ApiError('E-postadressen ser inte giltig ut.', { kod: 'ogiltig_epost' })
   }
 
   if (!hasSupabase) {
-    if (db.personal.some((p) => p.kod === row.kod)) {
-      throw new ApiError('Koden används redan av någon annan.', { kod: 'dublett' })
+    if (db.personal.some((p) => p.epost === row.epost)) {
+      throw new ApiError('E-postadressen används redan av någon annan.', { kod: 'dublett' })
     }
     const saved = { ...row, id: db.newId() }
     db.personal.push(saved)
@@ -566,7 +624,7 @@ export async function addStaff({ namn, initialer, roll, kod }) {
 
   const svar = await supabase.from('personal').insert(row).select().maybeSingle()
   if (svar.error?.code === '23505') {
-    throw new ApiError('Koden används redan av någon annan.', { orsak: svar.error, kod: 'dublett' })
+    throw new ApiError('E-postadressen används redan av någon annan.', { orsak: svar.error, kod: 'dublett' })
   }
   return kravRad(svar, 'lägga till personalen')
 }

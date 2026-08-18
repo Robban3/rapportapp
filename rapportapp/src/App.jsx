@@ -17,14 +17,17 @@ function TopBar() {
       <div className="topbar-right">
         {isAdmin && <Link to="/admin" className="link">Admin</Link>}
         <span className="chip"><span className="chip-av">{staff.initialer?.slice(0, 2)}</span>{staff.initialer}</span>
-        <button className="link" onClick={() => { logout(); nav('/login') }}>Logga ut</button>
+        <button className="link" onClick={async () => { await logout(); nav('/login') }}>Logga ut</button>
       </div>
     </header>
   )
 }
 
 function RequireAuth({ children, admin }) {
-  const { staff, isAdmin } = useSession()
+  const { staff, isAdmin, laddar } = useSession()
+  // Mot Supabase läses sessionen asynkront. Utan den här vänteskylten
+  // skickades en inloggad värd till inloggningssidan vid varje omladdning.
+  if (laddar) return <div className="empty">Laddar…</div>
   if (!staff) return <Navigate to="/login" replace />
   if (admin && !isAdmin) return <Navigate to="/" replace />
   return children
@@ -36,7 +39,8 @@ export default function App() {
       <TopBar />
       {!hasSupabase && (
         <div className="demo-banner">
-          Demoläge — kör mot seed-data. Koder: <b>1111</b> ZÄEM · <b>4444</b> MOBO · <b>0000</b> Admin.
+          Demoläge — kör mot seed-data, ingen autentisering. Logga in med
+          <b> zaem@example.se</b>, <b>mobo@example.se</b> eller <b>admin@example.se</b>.
           Lägg in Supabase-creds i <code>.env.local</code> för skarp data.
         </div>
       )}

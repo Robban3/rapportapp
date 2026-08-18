@@ -4,7 +4,7 @@ import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 
 const ROLES = ['Värd', 'Ordningsvakt', 'Garderob', 'Admin']
-const TOM_FORM = { namn: '', initialer: '', roll: 'Värd', kod: '' }
+const TOM_FORM = { namn: '', initialer: '', roll: 'Värd', epost: '' }
 
 export default function Staff() {
   const [staff, setStaff] = useState(null)
@@ -79,21 +79,33 @@ export default function Staff() {
   return (
     <div className="panel">
       <div className="h3">Personal &amp; behörighet</div>
-      <div className="meta">Lägg till personal och koppla vilka objekt de får rapportera på. En person ser bara sina kopplade objekt i appen.</div>
+      <div className="meta">
+        Lägg till personal och koppla vilka objekt de får rapportera på. En person ser bara sina
+        kopplade objekt i appen. Inloggningen sköts av Supabase Auth: lägg upp personen här med
+        rätt e-post och bjud in samma adress under Authentication → Users, så knyts de ihop
+        automatiskt — i vilken ordning du än gör det.
+      </div>
 
       {staff === null ? (
         <div className="empty">Laddar…</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="table">
-            <thead><tr><th>Sign.</th><th>Namn</th><th>Roll</th><th>Kod</th><th>Behörighet</th></tr></thead>
+            <thead><tr><th>Sign.</th><th>Namn</th><th>Roll</th><th>E-post</th><th>Konto</th><th>Behörighet</th></tr></thead>
             <tbody>
               {staff.map((p) => (
                 <tr key={p.id}>
                   <td><span className="avatar">{p.initialer?.slice(0, 2)}</span></td>
                   <td style={{ fontWeight: 700 }}>{p.namn} <span style={{ color: 'var(--dim)', fontWeight: 600 }}>({p.initialer})</span></td>
                   <td>{p.roll}</td>
-                  <td><code>{p.kod}</code></td>
+                  <td>{p.epost || <span style={{ color: 'var(--dim)' }}>—</span>}</td>
+                  {/* Utan kopplat konto kan personen inte logga in, hur rätt
+                      allt annat än är. Det ska synas direkt i listan. */}
+                  <td>
+                    {p.auth_user_id
+                      ? <span className="pill sent">Kopplat</span>
+                      : <span className="pill review">Ej inbjuden</span>}
+                  </td>
                   <td><button className="linkbtn" onClick={() => openLink(p)}>Koppla objekt →</button></td>
                 </tr>
               ))}
@@ -120,9 +132,10 @@ export default function Staff() {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="ny-kod">Personlig kod</label>
-          <input id="ny-kod" value={form.kod} maxLength={8} inputMode="numeric"
-            onChange={(e) => setForm({ ...form, kod: e.target.value })} />
+          <label htmlFor="ny-epost">E-post</label>
+          <input id="ny-epost" type="email" value={form.epost} inputMode="email"
+            autoCapitalize="none" autoCorrect="off"
+            onChange={(e) => setForm({ ...form, epost: e.target.value })} />
         </div>
         <button className="btn primary" type="submit" disabled={sparar}>
           {sparar ? 'Sparar…' : 'Lägg till'}

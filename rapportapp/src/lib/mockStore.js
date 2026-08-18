@@ -13,12 +13,14 @@ const objekt = [
   { id: 'o3', namn: 'Scandic Väst',         kod: 'SCVAST', kund_epost: 'drift@scandicvast.se', aktiv: true }
 ]
 
+// Ingen PIN-kolumn längre: lösenordet bor i Supabase Auth, och en läsbar
+// lösenordskolumn var precis det RLS-migrationen gjorde sig av med.
 const personal = [
-  { id: 'p1', namn: 'Zäem', initialer: 'ZÄEM', roll: 'Värd',         kod: '1111', aktiv: true },
-  { id: 'p2', namn: 'Varo', initialer: 'VARO', roll: 'Värd',         kod: '2222', aktiv: true },
-  { id: 'p3', namn: 'Pesa', initialer: 'PESA', roll: 'Ordningsvakt', kod: '3333', aktiv: true },
-  { id: 'p4', namn: 'Mobo', initialer: 'MOBO', roll: 'Ordningsvakt', kod: '4444', aktiv: true },
-  { id: 'p5', namn: 'Admin', initialer: 'ADM', roll: 'Admin',        kod: '0000', aktiv: true }
+  { id: 'p1', namn: 'Zäem', initialer: 'ZÄEM', roll: 'Värd',         epost: 'zaem@example.se',  aktiv: true },
+  { id: 'p2', namn: 'Varo', initialer: 'VARO', roll: 'Värd',         epost: 'varo@example.se',  aktiv: true },
+  { id: 'p3', namn: 'Pesa', initialer: 'PESA', roll: 'Ordningsvakt', epost: 'pesa@example.se',  aktiv: true },
+  { id: 'p4', namn: 'Mobo', initialer: 'MOBO', roll: 'Ordningsvakt', epost: 'mobo@example.se',  aktiv: true },
+  { id: 'p5', namn: 'Admin', initialer: 'ADM', roll: 'Admin',        epost: 'admin@example.se', aktiv: true }
 ]
 
 // personal <-> objekt (styr vad appen visar). Admin (p5) är kopplad till alla.

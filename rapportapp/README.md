@@ -19,32 +19,48 @@ npm run dev
 
 Öppna adressen som visas. Appen startar i **demoläge** (seed-data i minnet).
 
-Testkoder:
+Demoläget har ingen autentisering — e-posten pekar ut vem du är och lösenordet ignoreras.
 
-| Kod  | Roll         | Signatur |
-|------|--------------|----------|
-| 1111 | Värd         | ZÄEM     |
-| 2222 | Värd         | VARO     |
-| 3333 | Ordningsvakt | PESA     |
-| 4444 | Ordningsvakt | MOBO     |
-| 0000 | Admin        | ADM      |
+| E-post              | Roll         | Sign. | Bemannad på dagens pass |
+|---------------------|--------------|-------|-------------------------|
+| zaem@example.se     | Värd         | ZÄEM  | ja                      |
+| mobo@example.se     | Ordningsvakt | MOBO  | ja                      |
+| varo@example.se     | Värd         | VARO  | nej                     |
+| pesa@example.se     | Ordningsvakt | PESA  | nej                     |
+| admin@example.se    | Admin        | ADM   | —                       |
 
-Logga in som **0000** för att nå adminpanelen (granska rapport, Bemanning, Personal & behörighet).
-
-I demoläget är **ZÄEM** och **MOBO** bemannade på dagens pass på Clarion Draken, medan
-**VARO** och **PESA** är kopplade till objektet men inte bemannade — logga in som 2222
-för att se hur en obemannad person möts.
+Logga in som **admin@example.se** för adminpanelen (granska rapport, Bemanning,
+Personal & behörighet). Logga in som **varo@example.se** för att se hur en obemannad
+person möts.
 
 ## Koppla Supabase (skarp data)
 
+Repot är ett Supabase CLI-projekt. Migrationerna i `supabase/migrations/` körs i
+ordning — antingen av GitHub-integrationen vid push, eller lokalt med
+`supabase db push`.
+
 1. Skapa ett projekt på [supabase.com](https://supabase.com).
-2. Kör `supabase/schema.sql` i Supabase SQL Editor (skapar tabeller, vyer och seed).
+2. Koppla projektet till repot (Project Settings → Integrations → GitHub), eller kör
+   `supabase link` och `supabase db push`.
 3. Kopiera `.env.example` till `.env.local` och fyll i `VITE_SUPABASE_URL` och
    `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
-4. Starta om `npm run dev`. Appen använder nu Supabase automatiskt.
+4. Lägg upp personalen i adminpanelen med rätt e-post, och bjud in samma adresser
+   under **Authentication → Users**. Kopplingen sker automatiskt via en trigger,
+   oavsett i vilken ordning de två görs.
+5. Starta om `npm run dev`.
 
 Datalagret (`src/lib/api.js`) väljer backend själv: finns creds används Supabase,
 annars mock. UI:t är identiskt i båda lägena.
+
+### Inloggning
+
+Personalen loggar in med **e-post och lösenord** via Supabase Auth. Lösenordet ligger
+i `auth.users` och når aldrig klienten. Självregistrering är avstängd i `config.toml`
+— annars hade vem som helst kunnat skapa ett konto.
+
+Tidigare loggade appen in genom att slå upp en PIN i `personal`-tabellen. Eftersom
+anon-nyckeln ligger i JS-bundlen innebar det att vem som helst kunde läsa ut allas
+koder. `kod`-kolumnen finns inte längre.
 
 ## Struktur
 
@@ -58,7 +74,7 @@ src/
     incidents.js   # incidenttyper som driver statistiken
   state/session.jsx# inloggad personal
   pages/
-    Login.jsx      # inloggning med personlig kod
+    Login.jsx      # inloggning via Supabase Auth (e-post + lösenord)
     Objects.jsx    # objektlista — kopplade objekt, med bemanningsstatus
     ShiftLog.jsx   # passlogg, fria inlägg, delad i realtid (polling)
     admin/
@@ -67,7 +83,10 @@ src/
       ReportDetail.jsx # sammanställd rapport + skicka
       Bemanning.jsx  # lägg upp pass + bemanna det (styr åtkomst)
       Staff.jsx      # personal & behörighet (koppla objekt)
-supabase/schema.sql  # databasschema + seed
+supabase/
+  config.toml        # CLI-projekt; GitHub-integrationen läser härifrån
+  migrations/        # körs i ordning mot databasen
+  seed.sql           # demodata för lokal utveckling
 ```
 
 ## Behörighet — två nivåer
@@ -121,13 +140,16 @@ Tre saker faller ut av det:
 Sätt alltid sluttiden i Bemanning. Utan den vet appen inte när loggen ska stängas och
 räknar passet som öppet ett dygn från starten.
 
-> **Obs:** spärren ligger i klienten så länge inloggningen sker med personlig kod i
-> datalagret. För skarp drift måste den upprätthållas med RLS — se de färdiga
-> policy-exemplen i `supabase/schema.sql`.
+### Spärren ligger i databasen
+
+RLS är aktivt på alla tabeller (`supabase/migrations/*_auth_rls.sql`). Klienten är ett
+bekvämt gränssnitt, inte skyddet. Verifierat mot Postgres att en inloggad värd **inte**
+kan skriva i ett låst pass, skriva i någon annans namn, bemanna sig själv, lägga upp
+egna pass, göra sig till admin, eller ändra och radera inlägg. Utloggade når ingenting.
 
 ## Datamodell (kort)
 
-- **objekt** — hotellen. **personal** — värdar/OV/garderob med personlig kod.
+- **objekt** — hotellen. **personal** — värdar/OV/garderob, kopplade till ett auth-konto via e-post.
 - **personal_objekt** — kopplingen som styr vad appen visar per person.
 - **pass** — ett arbetspass på ett objekt en dag. **pass_personal** — vilka som jobbade (roster).
 - **inlagg** — fria anteckningar (tid + text + signatur, valfri incident-tagg).
@@ -140,10 +162,6 @@ så ingen manuell ifyllnad krävs vid pass-slut.
 - **PDF + e-post:** `lockAndSend()` i `api.js` markerar passet som skickat. Koppla en
   [Supabase Edge Function](https://supabase.com/docs/guides/functions) som genererar
   PDF (t.ex. med en HTML-mall) och skickar via Resend/Postmark/SES.
-- **Riktig autentisering:** demon loggar in via personlig kod i datalagret. För skarp
-  drift, byt till Supabase Auth och aktivera RLS-policyerna i `schema.sql`
-  (kommenterade som utgångspunkt) så objekt- och bemanningsspärren upprätthålls i
-  databasen i stället för bara i klienten.
 - **Realtid:** `ShiftLog.jsx` pollar var 5:e sekund. Byt till Supabase Realtime
   (`supabase.channel(...)`) för direktuppdatering när flera skriver samtidigt.
 - **Offline-kö:** service workern cachar skalet; lägg till en utgående kö för inlägg

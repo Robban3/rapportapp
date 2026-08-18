@@ -1,0 +1,20 @@
+# Supabase CLI-projekt. GitHub-integrationen läser migrations härifrån och
+# kör dem i ordning mot det kopplade projektet.
+project_id = "rapportapp"
+
+[db]
+port = 54322
+major_version = 15
+
+[db.migrations]
+enabled = true
+
+[auth]
+enabled = true
+# Värdar loggar in med e-post och lösenord. Ingen självregistrering: admin
+# lägger upp personen och bjuder in, annars kan vem som helst skapa konto.
+enable_signup = false
+enable_confirmations = false
+
+[studio]
+enabled = true
