@@ -5,9 +5,14 @@ import { useSession } from '../state/session.jsx'
 import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
 import { koFor, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel } from '../lib/utkorg.js'
+import { lyssnaPaPass } from '../lib/realtid.js'
 import Feltillstand from '../components/Feltillstand.jsx'
 
+// Utan realtid pollas loggen var 15:e sekund. Med realtid uppe räcker en
+// gles kontroll — den finns kvar som skyddsnät ifall WebSocketen tappas
+// utan att säga till.
 const POLL_MS = 15000
+const POLL_SAKERHET_MS = 60000
 
 export default function ShiftLog() {
   const { objektId } = useParams()
@@ -35,6 +40,8 @@ export default function ShiftLog() {
   const [skrivfel, setSkrivfel] = useState('')
   // Inlägg som skrivits utan nät och ännu inte kommit fram.
   const [ko, setKo] = useState([])
+  // Är realtidsprenumerationen uppe? Styr hur tätt appen pollar.
+  const [realtid, setRealtid] = useState(false)
   const bottom = useRef(null)
 
   const ladda = useCallback(async () => {
@@ -88,51 +95,74 @@ export default function ShiftLog() {
   // Passet hämtas om i samma svep. Tidigare lästes det bara vid sidladdning,
   // så en rapport som admin låste mitt i passet lämnade skrivfältet aktivt
   // och inläggen fortsatte fylla på en redan skickad rapport.
-  // Effekten hänger på passets ID, inte på passobjektet: load() sätter om
-  // passet, och ett nytt objekt varje poll hade startat om intervallet i en
-  // oändlig loop.
   const passId = pass?.id
-  useEffect(() => {
-    if (!passId) return
-    let levande = true
 
-    const load = async () => {
-      if (document.hidden || !navigator.onLine) return
+  // Vilket pass som är aktuellt just nu. Byter värden objekt mitt i en
+  // hämtning ska det gamla svaret inte skriva över den nya loggen.
+  const aktuelltPass = useRef(passId)
+  useEffect(() => { aktuelltPass.current = passId }, [passId])
 
-      // Utkorgen töms först. Annars hämtas loggen, de köade inläggen skickas
-      // strax därefter, och värden ser dem inte förrän nästa poll.
-      try {
-        await flusha(staff.id, addEntry)
-      } catch { /* flusha markerar själv vad som inte gick fram */ }
-      if (!levande) return
-      setKo(koFor(staff.id, passId))
+  const hamta = useCallback(async () => {
+    if (!passId || document.hidden || !navigator.onLine) return
 
-      passById(passId)
-        .then((farskt) => { if (levande && farskt) setPass(farskt) })
-        .catch(() => { /* tyst: nästa poll försöker igen */ })
-
-      entriesForPass(passId)
-        .then((e) => { if (levande) setEntries(e) })
-        .catch(() => { /* tyst: nästa poll försöker igen, inget går förlorat */ })
-    }
-
-    // Kön visas direkt, även offline när load() inte gör något.
+    // Utkorgen töms först. Annars hämtas loggen, de köade inläggen skickas
+    // strax därefter, och värden ser dem inte förrän nästa hämtning.
+    try {
+      await flusha(staff.id, addEntry)
+    } catch { /* flusha markerar själv vad som inte gick fram */ }
+    if (aktuelltPass.current !== passId) return
     setKo(koFor(staff.id, passId))
 
-    load()
-    const iv = setInterval(load, POLL_MS)
-    document.addEventListener('visibilitychange', load)
-    window.addEventListener('online', load)
-    window.addEventListener('focus', load)
+    try {
+      const farskt = await passById(passId)
+      if (farskt && aktuelltPass.current === passId) setPass(farskt)
+    } catch { /* tyst: nästa hämtning försöker igen */ }
+
+    try {
+      const rader = await entriesForPass(passId)
+      if (aktuelltPass.current === passId) setEntries(rader)
+    } catch { /* tyst: nästa hämtning försöker igen, inget går förlorat */ }
+  }, [passId, staff.id])
+
+  // Realtid: kollegans inlägg dyker upp direkt i stället för vid nästa poll,
+  // och skrivfältet stängs i samma stund som admin låser rapporten.
+  //
+  // Händelsen bär bara signalen "något ändrades" — loggen hämtas om. Raden i
+  // händelsen saknar signatur och rättelsemarkering, och en halvfärdig rad i
+  // loggen är värre än en hämtning till.
+  useEffect(() => {
+    if (!passId) return
+
+    // Två värdar som skriver samtidigt ger två händelser. Utan den här
+    // pausen blir det två hämtningar på samma millisekund.
+    let timer = null
+    const strax = () => { clearTimeout(timer); timer = setTimeout(hamta, 150) }
+
+    const avsluta = lyssnaPaPass(passId, { onAndring: strax, onStatus: setRealtid })
+    return () => { clearTimeout(timer); avsluta() }
+  }, [passId, hamta])
+
+  // Pollningen ligger kvar. Realtid som tappas tyst — sovande telefon, tappat
+  // nät, proxy som stänger WebSockets — får inte betyda att loggen fryser.
+  useEffect(() => {
+    if (!passId) return
+
+    // Kön visas direkt, även offline när hamta() inte gör något.
+    setKo(koFor(staff.id, passId))
+
+    hamta()
+    const iv = setInterval(hamta, realtid ? POLL_SAKERHET_MS : POLL_MS)
+    document.addEventListener('visibilitychange', hamta)
+    window.addEventListener('online', hamta)
+    window.addEventListener('focus', hamta)
 
     return () => {
-      levande = false
       clearInterval(iv)
-      document.removeEventListener('visibilitychange', load)
-      window.removeEventListener('online', load)
-      window.removeEventListener('focus', load)
+      document.removeEventListener('visibilitychange', hamta)
+      window.removeEventListener('online', hamta)
+      window.removeEventListener('focus', hamta)
     }
-  }, [passId, staff.id])
+  }, [passId, staff.id, hamta, realtid])
 
   function rullaNed() {
     requestAnimationFrame(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }))
@@ -280,6 +310,7 @@ export default function ShiftLog() {
 
       <div className="log-meta">
         Passlogg · {entries.length} inlägg
+        {realtid && <span className="rt-tag" title="Kollegornas inlägg syns direkt">direkt</span>}
         {ko.length > 0 && <span className="ko-rakning">{ko.length} väntar på nät</span>}
       </div>
       <div className="entries" aria-live="polite">

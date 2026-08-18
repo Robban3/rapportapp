@@ -109,12 +109,13 @@ src/
     time.js        # tidsparsning + sortnyckel (nattpass hanteras)
     incidents.js   # incidenttyper som driver statistiken
     utkorg.js      # kö för inlägg som skrivs utan nät
+    realtid.js     # prenumeration på passet (Supabase Realtime)
     tema.js        # ljust/mörkt läge
   state/session.jsx# inloggad personal
   pages/
     Login.jsx      # inloggning via Supabase Auth (e-post + lösenord)
     Objects.jsx    # objektlista — kopplade objekt, med bemanningsstatus
-    ShiftLog.jsx   # passlogg, fria inlägg, delad i realtid (polling)
+    ShiftLog.jsx   # passlogg, fria inlägg, delad i realtid
     admin/
       Admin.jsx      # adminlayout + routing
       ReviewList.jsx # pass att granska / skickade
@@ -249,6 +250,29 @@ Databasen håller reglerna, inte bara gränssnittet
 Klicka **Rätta** på inlägget i passloggen. Tid, text och tagg förifylls så bara det
 felaktiga behöver skrivas om.
 
+## Delad logg i realtid
+
+Alla som är bemannade på samma pass skriver i samma logg. Klienten prenumererar på
+passet via [Supabase Realtime](https://supabase.com/docs/guides/realtime), så
+kollegans inlägg syns direkt — och låser admin rapporten mitt i passet stängs
+skrivfältet i samma stund.
+
+Prenumerationen bär bara signalen *något ändrades*; loggen hämtas om via API:t.
+Raden i händelsen saknar signatur och rättelsemarkering, och en halvfärdig rad i
+loggen är värre än en hämtning till.
+
+RLS gäller även här: prenumerationen kör med den inloggades rättigheter, så den som
+inte får läsa passloggen får inga händelser från den heller.
+
+**Pollningen ligger kvar** som skyddsnät — var 15:e sekund utan realtid, var minut
+med. En WebSocket som tappas tyst (sovande telefon, hotellwifi, proxy som stänger
+långa uppkopplingar) får inte betyda att loggen fryser. Båda pausar när fliken är
+dold eller enheten är offline.
+
+Tabellerna ligger i publikationen `supabase_realtime`
+(`supabase/migrations/*_realtid.sql`). Kör migrationerna, annars faller appen
+tillbaka på enbart pollning — inget går sönder, det blir bara långsammare.
+
 ## Utan nät
 
 Hotellpass går i garage, källarplan och hisschakt. Skrivs ett inlägg där hamnar det
@@ -281,6 +305,3 @@ så ingen manuell ifyllnad krävs vid pass-slut.
 - **PDF + e-post:** `lockAndSend()` i `api.js` markerar passet som skickat. Koppla en
   [Supabase Edge Function](https://supabase.com/docs/guides/functions) som genererar
   PDF (t.ex. med en HTML-mall) och skickar via Resend/Postmark/SES.
-- **Realtid:** `ShiftLog.jsx` pollar var 15:e sekund (pausar när fliken är dold eller
-  enheten är offline). Byt till Supabase Realtime (`supabase.channel(...)`) för
-  direktuppdatering när flera skriver samtidigt.
