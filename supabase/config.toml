@@ -1,20 +1,33 @@
-# Supabase CLI-projekt. GitHub-integrationen läser migrations härifrån och
-# kör dem i ordning mot det kopplade projektet.
+# Supabase CLI-projekt. GitHub-integrationen läser migrations härifrån och kör
+# dem i ordning mot det kopplade projektet.
+#
+# Nycklarna nedan hålls medvetet få. Config-schemat ändras mellan CLI-versioner,
+# och en nyckel på fel nivå gör att HELA filen vägrar parsas — vilket stoppar
+# även `functions deploy`, som inte bryr sig om innehållet.
 project_id = "rapportapp"
+
+[api]
+enabled = true
 
 [db]
 port = 54322
-major_version = 15
 
 [db.migrations]
 enabled = true
 
-[auth]
-enabled = true
-# Värdar loggar in med e-post och lösenord. Ingen självregistrering: admin
-# lägger upp personen och bjuder in, annars kan vem som helst skapa konto.
-enable_signup = false
-enable_confirmations = false
-
 [studio]
 enabled = true
+
+[auth]
+enabled = true
+# Ingen självregistrering: admin lägger upp personen och bjuder in.
+#
+# OBS: den här filen styr BARA lokal utveckling. På det driftsatta projektet
+# måste samma sak stängas av i dashboarden under Authentication → Sign In /
+# Providers → Email, eller skjutas upp med `supabase config push`.
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+# Inbjudningslänken sätter lösenordet; någon separat bekräftelse behövs inte.
+enable_confirmations = false

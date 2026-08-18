@@ -60,8 +60,14 @@ annars mock. UI:t är identiskt i båda lägena.
 ### Inloggning
 
 Personalen loggar in med **e-post och lösenord** via Supabase Auth. Lösenordet ligger
-i `auth.users` och når aldrig klienten. Självregistrering är avstängd i `config.toml`
-— annars hade vem som helst kunnat skapa ett konto.
+i `auth.users` och når aldrig klienten.
+
+> **Stäng av självregistrering i dashboarden.** `supabase/config.toml` styr bara lokal
+> utveckling — den påverkar inte det driftsatta projektet om du inte kör
+> `supabase config push`. Gå till **Authentication → Sign In / Providers → Email** och
+> slå av *Allow new users to sign up*. Utan det kan vem som helst skapa ett konto.
+> Kontot hamnar visserligen utan personalrad och blir utsparkat vid inloggning, men
+> det ska inte gå att skapa från början.
 
 Tidigare loggade appen in genom att slå upp en PIN i `personal`-tabellen. Eftersom
 anon-nyckeln ligger i JS-bundlen innebar det att vem som helst kunde läsa ut allas
