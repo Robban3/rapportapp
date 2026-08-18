@@ -44,11 +44,13 @@ ordning — antingen av GitHub-integrationen vid push, eller lokalt med
    `supabase link` och `supabase db push`.
 3. Kopiera `.env.example` till `.env.local` och fyll i `VITE_SUPABASE_URL` och
    `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
-4. Deploya Edge Function och sätt dess nyckel:
+4. Deploya Edge Function för inbjudningar:
    ```bash
    supabase functions deploy bjud-in
-   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   # Project Settings → API
    ```
+   Ingen nyckel behöver sättas. `SUPABASE_URL`, `SUPABASE_ANON_KEY` och
+   `SUPABASE_SERVICE_ROLE_KEY` injiceras automatiskt i funktionsmiljön, och
+   `supabase secrets set` vägrar namn som börjar med `SUPABASE_`.
 5. Lägg upp personalen under **Admin → Personal & behörighet** och tryck **Bjud in**.
    Kopplingen mellan personalrad och auth-konto sker automatiskt via en trigger,
    oavsett i vilken ordning de två skapas.
@@ -85,9 +87,13 @@ app-administratör har ett Supabase-konto med projektåtkomst, alltså full läs
 skrivrätt till hela databasen förbi RLS. Poängen med behörighetsmodellen är att
 "admin i appen" och "ägare av databasen" ska kunna vara olika personer.
 
-> **Obs:** inbjudningsmejl kräver egen SMTP i Supabase. Det inbyggda utskicket har
-> hård kvot och är avsett för test. Utan SMTP svarar funktionen med felet från
-> Supabase i klartext i panelen.
+service_role-nyckeln finns aldrig i repot och behöver inte sättas: plattformen
+injicerar den i funktionsmiljön. Försöker man ändå sätta den svarar CLI:n
+*"Env name cannot start with SUPABASE_, skipping"* — och hoppar över den tyst.
+
+> **Obs:** inbjudningsmejl kräver egen SMTP i Supabase (Project Settings → Auth →
+> SMTP Settings). Det inbyggda utskicket har hård kvot och är avsett för test.
+> Utan SMTP svarar funktionen med felet från Supabase i klartext i panelen.
 
 `supabase/functions/` deployas **inte** av GitHub-integrationen — den kör bara
 migrations. Kör `supabase functions deploy bjud-in` när funktionen ändras.

@@ -5,9 +5,10 @@
 // kontrollerar först att anroparen verkligen är admin, och använder nyckeln
 // först därefter.
 //
-// Nyckeln sätts som secret, aldrig i repot:
-//   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...
-// (SUPABASE_URL och SUPABASE_ANON_KEY finns redan i funktionsmiljön.)
+// SUPABASE_URL, SUPABASE_ANON_KEY och SUPABASE_SERVICE_ROLE_KEY injiceras
+// automatiskt av plattformen och ska INTE sättas för hand — CLI:n vägrar
+// ("Env name cannot start with SUPABASE_, skipping"). Nyckeln finns alltså
+// aldrig i repot, och behöver inte göra det heller.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
