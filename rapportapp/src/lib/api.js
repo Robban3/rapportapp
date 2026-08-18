@@ -93,12 +93,6 @@ export async function objectsForStaff(personalId) {
   return (data || []).map((r) => r.objekt).filter((o) => o && o.aktiv)
 }
 
-/** Har personen behörighet till objektet? Kontrolleras innan pass öppnas. */
-export async function harBehorighet(personalId, objektId) {
-  const objekt = await objectsForStaff(personalId)
-  return objekt.some((o) => o.id === objektId)
-}
-
 // -------------------------------------------------- öppet pass för ett objekt
 /**
  * Hämtar passet för objekt+datum och skapar det om det saknas.
@@ -475,11 +469,37 @@ export async function staffForObjekt(objektId) {
 }
 
 // ------------------------------------------------------ inlägg i ett pass
+/**
+ * Lägger rättelsen direkt efter sitt original i stället för på sin egen tid.
+ *
+ * En rättelse skriven 23:00 om ett inlägg 22:10 hör ihop med 22:10. Sorterad
+ * på sin egen tid hade kunden läst felet först och rättelsen en timme senare.
+ */
+function ordnaMedRattelser(rader) {
+    const rattelser = new Map()
+    for (const i of rader) if (i.rattar_id) rattelser.set(i.rattar_id, i)
+
+    const ordnat = []
+    for (const i of rader) {
+      if (i.rattar_id) continue                 // placeras vid sitt original
+      ordnat.push({ ...i, ar_rattad: rattelser.has(i.id) })
+      const rattelse = rattelser.get(i.id)
+      if (rattelse) ordnat.push({ ...rattelse, ar_rattad: false })
+    }
+
+    // En rättelse vars original inte kom med (ska inte hända, men datan ska
+    // aldrig försvinna tyst) läggs sist hellre än att tappas bort.
+    const med = new Set(ordnat.map((i) => i.id))
+    for (const i of rader) if (!med.has(i.id)) ordnat.push({ ...i, ar_rattad: false })
+    return ordnat
+}
+
 export async function entriesForPass(passId) {
   if (!hasSupabase) {
-    return db.inlagg.filter((i) => i.pass_id === passId)
+    const rader = db.inlagg.filter((i) => i.pass_id === passId)
       .map((i) => ({ ...i, signatur: personalMed(i.personal_id)?.initialer }))
       .sort((a, b) => a.sortnyckel - b.sortnyckel || a.skapad_at.localeCompare(b.skapad_at))
+    return ordnaMedRattelser(rader)
   }
   const svar = await supabase
     .from('inlagg')
@@ -487,10 +507,10 @@ export async function entriesForPass(passId) {
     .eq('pass_id', passId)
     .order('sortnyckel').order('skapad_at')
   const data = kastaVidFel(svar, 'hämta passloggen')
-  return (data || []).map((i) => ({ ...i, signatur: i.personal?.initialer }))
+  return ordnaMedRattelser((data || []).map((i) => ({ ...i, signatur: i.personal?.initialer })))
 }
 
-export async function addEntry({ passId, personalId, tid, meddelande, incidentTyp = null, passStartTid = null }) {
+export async function addEntry({ passId, personalId, tid, meddelande, incidentTyp = null, passStartTid = null, rattarId = null }) {
   const text = String(meddelande || '').trim()
   if (!text) throw new ApiError('Inlägget saknar text.', { kod: 'tom_text' })
 
@@ -515,7 +535,21 @@ export async function addEntry({ passId, personalId, tid, meddelande, incidentTy
   const row = {
     pass_id: passId, personal_id: personalId, tid: angivenTid,
     sortnyckel: sortKey(angivenTid, passStartTid), meddelande: text,
-    incident_typ: incidentTyp, last: true
+    incident_typ: incidentTyp, last: true, rattar_id: rattarId
+  }
+
+  // Ett inlägg får rättas en gång, och en rättelse får inte rättas. Databasen
+  // upprätthåller båda, men i demoläget finns ingen databas att luta sig mot.
+  if (rattarId) {
+    const original = (hasSupabase ? null : db.inlagg.find((i) => i.id === rattarId))
+    if (!hasSupabase) {
+      if (!original) throw new ApiError('Inlägget som skulle rättas finns inte.', { kod: 'saknas' })
+      if (original.pass_id !== passId) throw new ApiError('Rättelsen hör till ett annat pass.', { kod: 'fel_pass' })
+      if (original.rattar_id) throw new ApiError('En rättelse går inte att rätta.', { kod: 'rattelse_av_rattelse' })
+      if (db.inlagg.some((i) => i.rattar_id === rattarId)) {
+        throw new ApiError('Inlägget är redan rättat.', { kod: 'redan_rattad' })
+      }
+    }
   }
 
   if (!hasSupabase) {
@@ -546,8 +580,14 @@ export async function passList(status) {
 // ------------------------------------------------- admin: sammanställd rapport
 export async function report(passId) {
   const entries = await entriesForPass(passId)
+  // Ett rättat inlägg räknas inte — rättelsen bär den gällande taggen. Utan
+  // detta hade en felaktig incidenttagg levt kvar i kundens statistik även
+  // efter att den rättats.
   const stats = emptyStats()
-  for (const e of entries) if (e.incident_typ && stats[e.incident_typ] != null) stats[e.incident_typ]++
+  for (const e of entries) {
+    if (e.ar_rattad) continue
+    if (e.incident_typ && stats[e.incident_typ] != null) stats[e.incident_typ]++
+  }
 
   if (!hasSupabase) {
     const p = db.pass.find((x) => x.id === passId)

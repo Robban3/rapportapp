@@ -53,6 +53,9 @@ export default function ReportDetail() {
 
   const { objekt, pass, roster, entries, stats } = data
   const isSent = sent || pass.status === 'skickat'
+  // Rättelser räknas för sig. Kunden ska se att t.ex. 12 inlägg innehåller
+  // 2 rättelser, inte tro att det skrivits 12 fristående anteckningar.
+  const antalRattelser = entries.filter((e) => e.rattar_id).length
 
   return (
     <div className="review-grid">
@@ -61,7 +64,12 @@ export default function ReportDetail() {
           <span className="h3">{objekt?.namn}</span>
           <span className={'pill ' + (isSent ? 'sent' : 'review')}>{isSent ? 'Låst' : 'Granskas'}</span>
         </div>
-        <div className="meta">{pass.datum} · pass {pass.starttid}–{pass.sluttid || '—'} · {roster.length} i personalen · {entries.length} inlägg · automatiskt sorterat i tidsordning</div>
+        <div className="meta">
+          {pass.datum} · pass {pass.starttid}–{pass.sluttid || '—'} · {roster.length} i personalen
+          {' '}· {entries.length} inlägg
+          {antalRattelser > 0 && ` (varav ${antalRattelser} ${antalRattelser === 1 ? 'rättelse' : 'rättelser'})`}
+          {' '}· automatiskt sorterat i tidsordning
+        </div>
 
         <div className="mini-lbl">Personal på passet</div>
         {roster.length === 0 ? (
@@ -81,11 +89,22 @@ export default function ReportDetail() {
         )}
 
         <div className="mini-lbl">Anteckningar</div>
+        {/* Ett rättat inlägg tas aldrig bort ur rapporten. Det står kvar
+            överstruket med rättelsen direkt under, så kunden ser både vad som
+            först skrevs och vad som gäller. entriesForPass har redan lagt dem
+            i den ordningen. */}
         <div className="rep">
           {entries.map((e) => (
-            <div className="rrow" key={e.id}>
+            <div className={'rrow' + (e.ar_rattad ? ' rattad' : '') + (e.rattar_id ? ' rattelse' : '')} key={e.id}>
               <div className="rt">{e.tid}</div>
-              <div>{e.meddelande}<div className="rn">{e.signatur}</div></div>
+              <div>
+                <span className="rmsg">{e.meddelande}</span>
+                <div className="rn">
+                  {e.signatur}
+                  {e.rattar_id && <span className="ratt-badge">Rättelse</span>}
+                  {e.ar_rattad && <span className="ratt-badge gammal">Rättad</span>}
+                </div>
+              </div>
             </div>
           ))}
         </div>

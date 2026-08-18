@@ -202,7 +202,18 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   color:var(--dim);font-weight:700;}
 .entry .sig .av{width:17px;height:17px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-size:8px;font-weight:800;}
-.inc-badge{margin-left:auto;font-size:9px;font-weight:700;color:var(--warn);
+.entry.rattad .msg{text-decoration:line-through;color:var(--dim);}
+.entry.rattelse .body{border-left:3px solid var(--accent);}
+.ratt-badge{font-size:9px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+  padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;}
+.ratt-badge.gammal{color:var(--dim);background:var(--surface3);}
+.ratta-knapp{margin-left:auto;font-size:11.5px;}
+.rattar-rad{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;
+  color:var(--ink2);background:var(--accent-soft);border:1px solid var(--accent-line);
+  border-radius:var(--r);padding:9px 12px;margin-bottom:10px;}
+.rattar-rad b{font-family:var(--mono);}
+.rattar-rad .linkbtn{margin-left:auto;}
+.inc-badge{font-size:9px;font-weight:700;color:var(--warn);
   background:var(--warn-soft);padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;}
 
 .composer{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 22%);
@@ -318,7 +329,13 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   border-bottom:1px solid var(--line);font-size:13px;}
 .rrow:last-child{border-bottom:none;}
 .rrow .rt{font-family:var(--mono);font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
-.rrow .rn{font-size:10.5px;color:var(--dim);font-weight:700;margin-top:4px;letter-spacing:.03em;}
+.rrow .rn{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--dim);
+  font-weight:700;margin-top:4px;letter-spacing:.03em;}
+/* Rättat inlägg står kvar i rapporten, överstruket, med rättelsen under. */
+.rrow.rattad .rmsg{text-decoration:line-through;color:var(--dim);}
+/* padding-left kompenserar för kantlinjen, annars hoppar tiden i sidled
+   på just rättelseraden. */
+.rrow.rattelse{border-left:3px solid var(--accent);background:var(--accent-soft);padding-left:12px;}
 .stat-hint{font-size:11.5px;color:var(--dim);margin:-4px 0 12px;line-height:1.5;}
 .stat{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-bottom:9px;}
 .stat .num{font-family:var(--mono);font-weight:700;background:var(--surface2);border:1px solid var(--line);
@@ -352,3 +369,23 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   box-shadow:0 32px 72px -20px rgba(11,30,26,.5);}
 .modal h3{margin:0 0 5px;font-size:18px;font-weight:700;letter-spacing:-.02em;}
 .modal .sub{color:var(--dim);font-size:13px;margin-bottom:14px;}
+
+/* -------------------------------------------------- utskrift
+   "Skriv ut" i rapportvyn gav tidigare hela adminskalet på papperet:
+   sidopanel, knappar och statistikkolumn. Här skalas det bort så det som
+   hamnar hos kunden är rapporten och inget annat. */
+@media print{
+  :root{--bg:#fff;--surface:#fff;--surface2:#fff;--ink:#000;--ink2:#222;--dim:#555;}
+  .admin-side,.demo-banner,.topbar,.side-fot{display:none !important;}
+  .admin-layout,.admin-main,.admin-inner{display:block;margin:0;padding:0;max-width:none;}
+  .review-grid{display:block;}
+  .panel{border:none;box-shadow:none;padding:0;margin-bottom:18px;break-inside:avoid;}
+  /* Statistiken hör till rapporten och ska med på papperet. Knappar och
+     mottagarlistan är arbetsverktyg för administratören och ska inte det. */
+  .btn,.linkbtn,.modal-back,.field,.stat-hint{display:none !important;}
+  .rrow{break-inside:avoid;}
+  /* Rättelsens markeringar bär betydelse — de får inte falla bort när
+     skrivaren skalar av bakgrundsfärger. */
+  .rrow.rattelse,.ratt-badge{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  a[href]:after{content:'';}
+}

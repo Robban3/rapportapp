@@ -224,12 +224,36 @@ bekvämt gränssnitt, inte skyddet. Verifierat mot Postgres att en inloggad vär
 kan skriva i ett låst pass, skriva i någon annans namn, bemanna sig själv, lägga upp
 egna pass, göra sig till admin, eller ändra och radera inlägg. Utloggade når ingenting.
 
+## Rättelser
+
+Ett inlägg går aldrig att redigera eller radera — inte heller av den som skrev det.
+Blev något fel skrivs en **rättelse** i stället: en ny rad som pekar på originalet
+med `inlagg.rattar_id`.
+
+- Originalet står kvar i loggen och i rapporten, **överstruket** och märkt *Rättad*.
+- Rättelsen visas direkt under originalet, märkt *Rättelse*, oavsett när den skrevs.
+- Statistiken räknar rättelsens incidenttagg, inte originalets. En felaktig tagg
+  följer alltså inte med till kunden.
+
+Databasen håller reglerna, inte bara gränssnittet
+(`supabase/migrations/*_rattelser.sql`, verifierat mot Postgres):
+
+- ett inlägg kan rättas **en** gång (unikt index på `rattar_id`)
+- en rättelse kan inte rättas
+- rättelsen måste ligga i **samma pass** som originalet
+- rättelser går bara att skriva i ett **öppet** pass — efter att rapporten är låst
+  får ingen skriva, inte heller en rättelse
+
+Klicka **Rätta** på inlägget i passloggen. Tid, text och tagg förifylls så bara det
+felaktiga behöver skrivas om.
+
 ## Datamodell (kort)
 
 - **objekt** — hotellen. **personal** — värdar/OV/garderob, kopplade till ett auth-konto via e-post.
 - **personal_objekt** — kopplingen som styr vad appen visar per person.
 - **pass** — ett arbetspass på ett objekt en dag. **pass_personal** — vilka som jobbade (roster).
 - **inlagg** — fria anteckningar (tid + text + signatur, valfri incident-tagg).
+  `rattar_id` pekar på det inlägg raden rättar (se Rättelser).
 
 Statistiken i rapporten räknas automatiskt från inlägg som taggats med en incidenttyp,
 så ingen manuell ifyllnad krävs vid pass-slut.
@@ -239,9 +263,8 @@ så ingen manuell ifyllnad krävs vid pass-slut.
 - **PDF + e-post:** `lockAndSend()` i `api.js` markerar passet som skickat. Koppla en
   [Supabase Edge Function](https://supabase.com/docs/guides/functions) som genererar
   PDF (t.ex. med en HTML-mall) och skickar via Resend/Postmark/SES.
-- **Realtid:** `ShiftLog.jsx` pollar var 5:e sekund. Byt till Supabase Realtime
-  (`supabase.channel(...)`) för direktuppdatering när flera skriver samtidigt.
+- **Realtid:** `ShiftLog.jsx` pollar var 15:e sekund (pausar när fliken är dold eller
+  enheten är offline). Byt till Supabase Realtime (`supabase.channel(...)`) för
+  direktuppdatering när flera skriver samtidigt.
 - **Offline-kö:** service workern cachar skalet; lägg till en utgående kö för inlägg
   som skrivs utan nät och synka när uppkoppling återkommer.
-- **Spårbarhet:** inlägg har fältet `last` (låst). Lägg till rättelser som nya rader
-  i stället för redigering om rapporterna ska hålla juridiskt.

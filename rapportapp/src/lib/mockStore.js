@@ -100,6 +100,18 @@ let inlagg = seedEntries.map(([tid, pid, msg, inc]) => ({
   last: true, skapad_at: new Date().toISOString()
 }))
 
+// En rättelse i demodatan, så både passloggen och rapportvyn visar hur det
+// ser ut: originalet står kvar överstruket med rättelsen direkt under, och
+// statistiken räknar rättelsens tagg i stället för originalets.
+const rattatInlagg = inlagg.find((i) => i.tid === '23:15')
+inlagg.push({
+  id: id(), pass_id: 'pass1', personal_id: 'p1', tid: '23:15',
+  sortnyckel: sortKey('23:15', pass[0].starttid),
+  meddelande: 'Rättelse: en (1) minderårig nekades vid entrén, inte två. Den andra var 19 år med giltig legitimation.',
+  incident_typ: 'nekad_alder', last: true, rattar_id: rattatInlagg.id,
+  skapad_at: new Date().toISOString()
+})
+
 export const db = {
   objekt, personal, pass, passPersonal, inlagg,
   get personalObjekt() { return personalObjekt },

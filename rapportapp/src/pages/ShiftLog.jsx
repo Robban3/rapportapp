@@ -28,6 +28,8 @@ export default function ShiftLog() {
   const [tid, setTid] = useState(nowHHMM())
   const [msg, setMsg] = useState('')
   const [inc, setInc] = useState(null)
+  // Vilket inlägg som rättas, eller null för ett vanligt inlägg.
+  const [rattar, setRattar] = useState(null)
   const [busy, setBusy] = useState(false)
   const [skrivfel, setSkrivfel] = useState('')
   const bottom = useRef(null)
@@ -132,10 +134,11 @@ export default function ShiftLog() {
       await addEntry({
         passId: pass.id, personalId: staff.id, tid,
         meddelande: msg.trim(), incidentTyp: inc,
-        passStartTid: pass.starttid
+        passStartTid: pass.starttid,
+        rattarId: rattar?.id ?? null
       })
       // Rensa först när inlägget faktiskt är sparat.
-      setMsg(''); setInc(null); setTid(nowHHMM())
+      setMsg(''); setInc(null); setTid(nowHHMM()); setRattar(null)
       setEntries(await entriesForPass(pass.id))
       requestAnimationFrame(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }))
     } catch (fel) {
@@ -144,6 +147,20 @@ export default function ShiftLog() {
     } finally {
       setBusy(false)
     }
+  }
+
+  function borjaRatta(e) {
+    setRattar(e)
+    setTid(e.tid)
+    setMsg(e.meddelande)
+    setInc(e.incident_typ || null)
+    setSkrivfel('')
+    requestAnimationFrame(() => document.querySelector('.minput')?.focus())
+  }
+
+  function avbrytRattelse() {
+    setRattar(null)
+    setMsg(''); setInc(null); setTid(nowHHMM())
   }
 
   if (status === 'laddar') return <div className="empty">Laddar passet…</div>
@@ -209,13 +226,23 @@ export default function ShiftLog() {
         {entries.map((e) => {
           const it = INCIDENT_TYPES.find((t) => t.key === e.incident_typ)
           return (
-            <div key={e.id} className={'entry' + (e.personal_id === staff.id ? ' mine' : '')}>
+            <div key={e.id} className={'entry'
+              + (e.personal_id === staff.id ? ' mine' : '')
+              + (e.ar_rattad ? ' rattad' : '')
+              + (e.rattar_id ? ' rattelse' : '')}>
               <div className="t">{e.tid}</div>
               <div className="body">
                 <div className="msg">{e.meddelande}</div>
                 <div className="sig">
                   <span className="av">{e.signatur?.slice(0, 2)}</span>{e.signatur}
+                  {e.rattar_id && <span className="ratt-badge">Rättelse</span>}
+                  {e.ar_rattad && <span className="ratt-badge gammal">Rättad</span>}
                   {it && <span className="inc-badge">{it.kort}</span>}
+                  {/* Rättelser skrivs bara i ett öppet pass, och ett inlägg
+                      rättas en gång — resten stoppas ändå av databasen. */}
+                  {!last && !e.ar_rattad && !e.rattar_id && (
+                    <button className="linkbtn ratta-knapp" onClick={() => borjaRatta(e)}>Rätta</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -233,6 +260,13 @@ export default function ShiftLog() {
       ) : (
       <div className="composer">
         <div className="composer-inner">
+          {rattar && (
+            <div className="rattar-rad">
+              Rättar inlägget <b>{rattar.tid}</b> av {rattar.signatur}. Originalet står kvar
+              i rapporten, överstruket.
+              <button className="linkbtn" onClick={avbrytRattelse}>Avbryt</button>
+            </div>
+          )}
           <div className="crow">
             <input className="tinput" value={tid} onChange={(e) => setTid(e.target.value)}
               inputMode="numeric" aria-label="Tid" />
@@ -240,7 +274,7 @@ export default function ShiftLog() {
               onChange={(e) => setMsg(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()} />
             <button className="send" onClick={send} disabled={busy || !msg.trim()}
-              aria-label="Spara inlägg">→</button>
+              aria-label={rattar ? 'Spara rättelse' : 'Spara inlägg'}>→</button>
           </div>
           {skrivfel && (
             <div className="err" role="alert" style={{ height: 'auto', marginTop: 8 }}>{skrivfel}</div>
