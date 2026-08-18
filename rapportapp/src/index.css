@@ -16,7 +16,7 @@
 
   --ink:#0e1c18; --ink2:#3c4f49; --dim:#6a7f79;
 
-  --accent:#0d9488; --accent-hover:#0f766e; --accent-ink:#fff;
+  --accent:#0d9488; --accent-hover:#0f766e; --accent-ink:#fff; --warn-ink:#fff;
   --accent-soft:#dff2ee; --accent-line:#9fd8d0;
 
   --warn:#a45c09; --warn-soft:#fdf1de;
@@ -34,7 +34,47 @@
   --r-sm:8px; --r:11px; --r-lg:15px;
   --skugga:0 1px 2px rgba(14,28,24,.05), 0 1px 3px rgba(14,28,24,.04);
   --skugga-lyft:0 12px 32px -12px rgba(14,28,24,.28), 0 2px 6px rgba(14,28,24,.06);
+  --topbar-bg:rgba(255,255,255,.88);
+  --markering:rgba(11,30,26,.45);
+  --demo-bg:#fdf1de; --demo-line:#f0dfc0; --demo-ink:#6b4e13;
 }
+
+/* ---------------------------------------------------------- mörkt läge
+   Passloggen används i mörk hotellobby kl 02:00. En vit skärm är där ett
+   arbetsmiljöproblem, så mörkt läge är en funktion och inte en smaksak.
+
+   Ytorna ljusnar uppåt i stället för att bli vita: den ljusaste ytan i
+   bilden ska vara ett litet kort, aldrig hela sidan. Accenten lyfts till
+   #2dd4bf — teal 600 blir grumligt mot mörk botten. */
+[data-tema="morkt"]{
+  --bg:#0a1512; --surface:#111f1b; --surface2:#182a25; --surface3:#20352f;
+  --line:#223a34; --line-strong:#2f4a43;
+
+  --ink:#e3efeb; --ink2:#a8c0b9; --dim:#7c948d;
+
+  --accent:#2dd4bf; --accent-hover:#5eead4;
+  --accent-soft:rgba(45,212,191,.13); --accent-line:#2b5d55;
+
+  /* Mot ljus accent måste texten bli mörk — vitt på #2dd4bf ger under 2:1. */
+  --accent-ink:#04211d; --warn-ink:#2a1c05;
+  --warn:#e0a955; --warn-soft:rgba(224,169,85,.13);
+  --alert:#f87171; --alert-soft:rgba(248,113,113,.12);
+
+  /* Sidopanelen ligger nu LJUSARE än innehållet — mot mörk botten läser en
+     ännu mörkare panel som ett hål i stället för en upphöjd yta. */
+  --nav-bg:#152722; --nav-bg2:#1d332d; --nav-line:#28443c;
+  --nav-ink:#dbeae5; --nav-dim:#89a49c;
+
+  --topbar-bg:rgba(10,21,18,.9);
+  --markering:rgba(2,8,7,.66);
+  --demo-bg:#2a2314; --demo-line:#3d3320; --demo-ink:#d9c48c;
+
+  --skugga:0 1px 2px rgba(0,0,0,.4);
+  --skugga-lyft:0 14px 34px -14px rgba(0,0,0,.75), 0 2px 6px rgba(0,0,0,.35);
+}
+/* Formulärkontroller ritas av webbläsaren; utan detta blir datumväljarens
+   och kryssrutans standarddelar vita fläckar i en mörk vy. */
+[data-tema="morkt"]{color-scheme:dark;}
 
 *{box-sizing:border-box;}
 html,body,#root{height:100%;}
@@ -53,22 +93,23 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 /* Topbarens innehåll följer innehållets bredd. Låg man det spänna över
    hela viewporten hamnade loggan och utloggningen i varsin ände med ett
    tomt fält emellan på breda skärmar. */
-.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.88);
+.topbar{position:sticky;top:0;z-index:20;background:var(--topbar-bg);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
 .topbar-inner{max-width:940px;margin:0 auto;padding:11px 18px;
   display:flex;align-items:center;justify-content:space-between;gap:16px;}
 .brand{display:inline-flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;}
-.brand-mark{width:28px;height:28px;border-radius:9px;background:var(--accent);color:#fff;
+.brand-mark{width:28px;height:28px;border-radius:9px;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-size:13px;font-weight:800;flex:none;}
 .topbar-right{display:flex;align-items:center;gap:8px;}
 .link{background:none;border:none;color:var(--ink2);font-weight:600;font-size:13px;
   padding:7px 11px;border-radius:var(--r-sm);transition:background .12s,color .12s;}
 .link:hover{background:var(--surface2);color:var(--ink);}
+.link:has(svg){padding:7px;display:inline-grid;place-items:center;}
 .chip{display:inline-flex;align-items:center;gap:7px;background:var(--surface2);
   border:1px solid var(--line);padding:5px 11px 5px 5px;border-radius:999px;font-size:12.5px;font-weight:700;}
-.chip-av{width:21px;height:21px;border-radius:50%;background:var(--accent);color:#fff;
+.chip-av{width:21px;height:21px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-size:9px;font-weight:800;}
-.demo-banner{background:var(--warn-soft);border-bottom:1px solid #f0dfc0;color:#6b4e13;
+.demo-banner{background:var(--demo-bg);border-bottom:1px solid var(--demo-line);color:var(--demo-ink);
   font-size:12.5px;padding:9px 18px;text-align:center;}
 
 .page-title{font-size:23px;font-weight:700;letter-spacing:-.02em;margin:10px 2px 3px;}
@@ -79,7 +120,7 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   font-weight:600;font-size:13.5px;padding:9px 15px;border-radius:var(--r);
   transition:background .12s,border-color .12s,box-shadow .12s;}
 .btn:hover:not(:disabled){background:var(--surface2);}
-.btn.primary{background:var(--accent);color:#fff;border-color:transparent;
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;
   box-shadow:0 1px 2px rgba(13,148,136,.3);}
 .btn.primary:hover:not(:disabled){background:var(--accent-hover);}
 .btn.block{width:100%;}
@@ -124,7 +165,7 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   border:1px solid var(--line);border-radius:var(--r-lg);padding:15px 17px;width:100%;
   text-align:left;box-shadow:var(--skugga);transition:border-color .12s,box-shadow .12s,transform .12s;}
 .obj-card:hover{border-color:var(--accent-line);box-shadow:var(--skugga-lyft);transform:translateY(-1px);}
-.obj-ico{width:44px;height:44px;border-radius:13px;background:var(--accent);color:#fff;
+.obj-ico{width:44px;height:44px;border-radius:13px;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-weight:800;font-size:14px;flex:none;letter-spacing:.02em;}
 .obj-name{font-weight:700;font-size:15px;letter-spacing:-.01em;}
 .obj-sub{font-size:12.5px;color:var(--dim);}
@@ -159,7 +200,7 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .entry .msg{font-size:13.5px;line-height:1.5;}
 .entry .sig{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11px;
   color:var(--dim);font-weight:700;}
-.entry .sig .av{width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;
+.entry .sig .av{width:17px;height:17px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-size:8px;font-weight:800;}
 .inc-badge{margin-left:auto;font-size:9px;font-weight:700;color:var(--warn);
   background:var(--warn-soft);padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;}
@@ -170,11 +211,14 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   padding:12px;box-shadow:var(--skugga-lyft);}
 .crow{display:flex;gap:9px;align-items:center;}
 .tinput{font-family:var(--mono);font-weight:700;font-size:14px;width:92px;text-align:center;flex:none;
-  font-variant-numeric:tabular-nums;background:var(--surface2)!important;}
+  font-variant-numeric:tabular-nums;background:var(--surface2);color:var(--ink);
+  border:1px solid var(--line-strong);border-radius:var(--r);padding:11px 8px;
+  transition:border-color .12s,box-shadow .12s;}
+.tinput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .minput{flex:1;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r);
   padding:11px 13px;font-size:14px;color:var(--ink);font-family:inherit;transition:border-color .12s,box-shadow .12s;}
 .minput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
-.send{width:46px;height:46px;border-radius:var(--r);background:var(--accent);color:#fff;border:none;
+.send{width:46px;height:46px;border-radius:var(--r);background:var(--accent);color:var(--accent-ink);border:none;
   font-size:18px;font-weight:700;flex:none;transition:background .12s;}
 .send:hover:not(:disabled){background:var(--accent-hover);}
 .send:disabled{opacity:.45;cursor:default;}
@@ -182,7 +226,7 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .inc-chip{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;
   background:var(--surface);border:1px solid var(--line-strong);color:var(--ink2);transition:all .12s;}
 .inc-chip:hover{border-color:var(--accent-line);}
-.inc-chip.on{background:var(--warn);color:#fff;border-color:transparent;}
+.inc-chip.on{background:var(--warn);color:var(--warn-ink);border-color:transparent;}
 .inc-hint{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.55;}
 
 /* ================================================== ADMIN — app-skal */
@@ -201,10 +245,12 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .admin-nav .navlbl{font-size:10px;text-transform:uppercase;letter-spacing:.11em;
   color:var(--nav-dim);font-weight:700;margin:16px 10px 6px;}
 .admin-nav .navlbl:first-child{margin-top:0;}
-.admin-nav a{display:block;padding:9px 12px;border-radius:var(--r-sm);font-weight:600;
+.admin-nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);font-weight:600;
   font-size:13.5px;color:var(--nav-ink);transition:background .12s,color .12s;}
 .admin-nav a:hover{background:var(--nav-bg2);}
 .admin-nav a.active{background:var(--nav-active-bg);color:var(--nav-active-ink);}
+.ikon{flex:none;opacity:.72;}
+.admin-nav a.active .ikon{opacity:1;}
 
 .side-fot{border-top:1px solid var(--nav-line);padding:14px 16px;display:flex;
   align-items:center;gap:10px;}
@@ -256,14 +302,14 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .tid-cell{font-family:var(--mono);font-weight:700;width:82px;text-align:center;
   font-variant-numeric:tabular-nums;}
 .table select:disabled,.tid-cell:disabled{opacity:.5;}
-.avatar{width:27px;height:27px;border-radius:50%;background:var(--accent);color:#fff;
+.avatar{width:27px;height:27px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
   display:inline-grid;place-items:center;font-size:9.5px;font-weight:800;}
 
 /* ------------------------------------------------- admin — rapporten */
 .roster{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px;}
 .rchip{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);
   border-radius:var(--r);padding:8px 12px;font-size:12.5px;}
-.rchip .av{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
+.rchip .av{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;font-size:8px;font-weight:800;}
 .rchip .rr{color:var(--dim);font-weight:600;font-size:10.5px;}
 .rchip .tt{font-family:var(--mono);font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums;}
@@ -300,7 +346,7 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .row-end{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
 
 /* -------------------------------------------------------------- modal */
-.modal-back{position:fixed;inset:0;background:rgba(11,30,26,.45);backdrop-filter:blur(3px);
+.modal-back{position:fixed;inset:0;background:var(--markering);backdrop-filter:blur(3px);
   display:grid;place-items:center;z-index:40;padding:18px;}
 .modal{background:var(--surface);border-radius:var(--r-lg);padding:24px;max-width:440px;width:100%;
   box-shadow:0 32px 72px -20px rgba(11,30,26,.5);}

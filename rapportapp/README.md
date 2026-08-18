@@ -126,6 +126,29 @@ supabase/
   seed.sql           # demodata för lokal utveckling
 ```
 
+## Mörkt läge
+
+Passloggen används i mörk hotellobby kl 02:00. En vit skärm är där ett
+arbetsmiljöproblem, inte en smaksak — därför finns mörkt läge, och det gäller
+hela appen.
+
+Systemets inställning styr som utgångspunkt. Knappen i topbaren (och i
+adminpanelens sidfot) tvingar fram ett läge oavsett vad surfplattan är
+inställd på, och valet sparas i `localStorage`. Temat skrivs på `<html>` av
+`applicera()` i `main.jsx` **innan** React monterar, annars hinner en vit skärm
+blinka förbi.
+
+Mörka läget är rena tokenbyten i `[data-tema="morkt"]` — komponenterna är redan
+tokenstyrda. Två saker skiljer sig från att bara invertera:
+
+- **Ytorna ljusnar uppåt.** Den ljusaste ytan i bilden ska vara ett litet kort,
+  aldrig hela sidan.
+- **Text på accenten blir mörk.** Vitt på `#2dd4bf` ger under 2:1. Uppmätt i
+  webbläsaren: brödtext 15,8:1, skicka-knappen 9,1:1 — båda över WCAG AA.
+
+`color-scheme: dark` sätts också, annars ritar webbläsaren datumväljaren och
+kryssrutorna som vita fläckar i en mörk vy.
+
 ## Behörighet — två nivåer
 
 | Nivå | Tabell | Sätts i | Styr |

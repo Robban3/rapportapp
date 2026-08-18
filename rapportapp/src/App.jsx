@@ -6,6 +6,7 @@ import Objects from './pages/Objects.jsx'
 import ShiftLog from './pages/ShiftLog.jsx'
 import Admin from './pages/admin/Admin.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import TemaKnapp from './components/TemaKnapp.jsx'
 
 export function DemoBanner() {
   if (hasSupabase) return null
@@ -31,6 +32,7 @@ function TopBar() {
         <Link to="/" className="brand"><span className="brand-mark">R</span> Rapport</Link>
         <div className="topbar-right">
           {isAdmin && <Link to="/admin" className="link">Admin</Link>}
+          <TemaKnapp />
           <span className="chip"><span className="chip-av">{staff.initialer?.slice(0, 2)}</span>{staff.initialer}</span>
           <button className="link" onClick={async () => { await logout(); nav('/login') }}>Logga ut</button>
         </div>

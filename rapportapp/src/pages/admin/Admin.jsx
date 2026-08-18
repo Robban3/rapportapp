@@ -6,6 +6,8 @@ import ReportDetail from './ReportDetail.jsx'
 import Staff from './Staff.jsx'
 import Bemanning from './Bemanning.jsx'
 import Objekt from './Objekt.jsx'
+import Ikon from '../../components/Ikon.jsx'
+import TemaKnapp from '../../components/TemaKnapp.jsx'
 
 const aktiv = ({ isActive }) => (isActive ? 'active' : '')
 
@@ -29,22 +31,23 @@ export default function Admin() {
 
         <nav className="admin-nav">
           <div className="navlbl">Rapporter</div>
-          <NavLink end to="/admin" className={aktiv}>Att granska</NavLink>
-          <NavLink to="/admin/skickade" className={aktiv}>Skickade</NavLink>
+          <NavLink end to="/admin" className={aktiv}><Ikon namn="granska" />Att granska</NavLink>
+          <NavLink to="/admin/skickade" className={aktiv}><Ikon namn="skickat" />Skickade</NavLink>
 
           <div className="navlbl">Administration</div>
-          <NavLink to="/admin/objekt" className={aktiv}>Objekt</NavLink>
-          <NavLink to="/admin/bemanning" className={aktiv}>Bemanning</NavLink>
-          <NavLink to="/admin/personal" className={aktiv}>Personal &amp; behörighet</NavLink>
+          <NavLink to="/admin/objekt" className={aktiv}><Ikon namn="objekt" />Objekt</NavLink>
+          <NavLink to="/admin/bemanning" className={aktiv}><Ikon namn="bemanning" />Bemanning</NavLink>
+          <NavLink to="/admin/personal" className={aktiv}><Ikon namn="personal" />Personal &amp; behörighet</NavLink>
 
           <div className="navlbl">Värdappen</div>
-          <NavLink to="/" className={aktiv}>Öppna passlogg</NavLink>
+          <NavLink to="/" className={aktiv}><Ikon namn="passlogg" />Öppna passlogg</NavLink>
         </nav>
 
         <div className="side-fot">
           <span className="chip">
             <span className="chip-av">{staff?.initialer?.slice(0, 2)}</span>{staff?.initialer}
           </span>
+          <TemaKnapp />
           <button className="link" onClick={async () => { await logout(); nav('/login') }}>
             Logga ut
           </button>
