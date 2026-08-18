@@ -283,12 +283,17 @@ export default function Bemanning() {
                         </select>
                       </td>
                       <td>
-                        <input className="tid-cell" defaultValue={r.tid_in || ''} placeholder="—" disabled={last || busy}
+                        {/* key på det sparade värdet: en tid som normaliserats
+                            (22.00 → 22:00) ska synas i fältet, inte bara i
+                            databasen. */}
+                        <input className="tid-cell" key={`in-${r.tid_in}`}
+                          defaultValue={r.tid_in || ''} placeholder="—" disabled={last || busy}
                           aria-label={`Tid in för ${r.namn}`}
                           onBlur={(e) => sparaRad(r, 'tid_in', e.target.value)} />
                       </td>
                       <td>
-                        <input className="tid-cell" defaultValue={r.tid_ut || ''} placeholder="—" disabled={last || busy}
+                        <input className="tid-cell" key={`ut-${r.tid_ut}`}
+                          defaultValue={r.tid_ut || ''} placeholder="—" disabled={last || busy}
                           aria-label={`Tid ut för ${r.namn}`}
                           onBlur={(e) => sparaRad(r, 'tid_ut', e.target.value)} />
                       </td>

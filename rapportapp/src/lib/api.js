@@ -861,4 +861,204 @@ export async function setStaffObjects(personalId, objektIds) {
   return { ok: true }
 }
 
+// ------------------------------------------------------- veckoschema
+// Så här ser en normalvecka ut på objektet. Schemat SKAPAR pass — det styr
+// dem inte. Ett pass som lagts upp ändras aldrig i efterhand av schemat, så
+// en enskild kväll som avviker (sjukdom, extrapersonal, andra tider) rättas
+// på passet och står kvar.
+
+export const VECKODAGAR = [
+  { nr: 1, namn: 'Måndag', kort: 'Mån' },
+  { nr: 2, namn: 'Tisdag', kort: 'Tis' },
+  { nr: 3, namn: 'Onsdag', kort: 'Ons' },
+  { nr: 4, namn: 'Torsdag', kort: 'Tor' },
+  { nr: 5, namn: 'Fredag', kort: 'Fre' },
+  { nr: 6, namn: 'Lördag', kort: 'Lör' },
+  { nr: 7, namn: 'Söndag', kort: 'Sön' }
+]
+
+function schemaTid(varde, vad, kravs) {
+  const rat = String(varde ?? '').trim()
+  if (!rat) {
+    if (kravs) throw new ApiError(`${vad} måste anges.`, { kod: 'ofullstandig' })
+    return null
+  }
+  const tolkad = normalizeKlockslag(rat)
+  if (!tolkad) throw new ApiError(`${vad} går inte att tolka. Skriv den som HH:MM.`, { kod: 'ogiltig_tid' })
+  return tolkad
+}
+
+/** Schemaraderna för ett objekt, med standardbemanningen på varje rad. */
+export async function listSchema(objektId) {
+  if (!objektId) return []
+
+  if (!hasSupabase) {
+    return db.objektSchema.filter((r) => r.objekt_id === objektId)
+      .sort((a, b) => a.veckodag - b.veckodag)
+      .map((r) => ({
+        ...r,
+        personal: db.schemaPersonal.filter((sp) => sp.schema_id === r.id).map((sp) => ({
+          ...sp,
+          initialer: personalMed(sp.personal_id)?.initialer,
+          namn: personalMed(sp.personal_id)?.namn
+        }))
+      }))
+  }
+
+  const svar = await supabase
+    .from('objekt_schema')
+    .select('*, schema_personal ( *, personal:personal_id ( initialer, namn ) )')
+    .eq('objekt_id', objektId)
+    .order('veckodag')
+  const data = kastaVidFel(svar, 'hämta veckoschemat')
+  return (data || []).map((r) => ({
+    ...r,
+    personal: (r.schema_personal || []).map((sp) => ({
+      ...sp, initialer: sp.personal?.initialer, namn: sp.personal?.namn
+    }))
+  }))
+}
+
+/** Lägger upp eller uppdaterar en veckodag på objektet. */
+export async function setSchemaRad(objektId, veckodag, { starttid, sluttid = null, aktiv = true } = {}) {
+  if (!objektId) throw new ApiError('Objekt måste anges.', { kod: 'ofullstandig' })
+  const dag = Number(veckodag)
+  if (!Number.isInteger(dag) || dag < 1 || dag > 7) {
+    throw new ApiError('Veckodagen måste vara 1–7 (måndag–söndag).', { kod: 'ogiltig_veckodag' })
+  }
+
+  // Starttiden är obligatorisk: den styr både när loggen öppnar och hur
+  // inläggen sorteras. Sluttiden får saknas — den fylls ibland i senare.
+  const rad = {
+    objekt_id: objektId, veckodag: dag,
+    starttid: schemaTid(starttid, 'Starttiden', true),
+    sluttid: schemaTid(sluttid, 'Sluttiden', false),
+    aktiv: !!aktiv
+  }
+
+  if (!hasSupabase) {
+    const i = db.objektSchema.findIndex((r) => r.objekt_id === objektId && r.veckodag === dag)
+    if (i >= 0) {
+      db.objektSchema[i] = { ...db.objektSchema[i], ...rad }
+      return clone(db.objektSchema[i])
+    }
+    const ny = { ...rad, id: db.newId(), skapad_at: new Date().toISOString() }
+    db.objektSchema.push(ny)
+    return clone(ny)
+  }
+
+  return kravRad(
+    await supabase.from('objekt_schema').upsert(rad, { onConflict: 'objekt_id,veckodag' }).select().maybeSingle(),
+    'spara schemaraden'
+  )
+}
+
+export async function removeSchemaRad(schemaId) {
+  if (!hasSupabase) {
+    db.schemaPersonal = db.schemaPersonal.filter((sp) => sp.schema_id !== schemaId)
+    const i = db.objektSchema.findIndex((r) => r.id === schemaId)
+    if (i >= 0) db.objektSchema.splice(i, 1)
+    return { ok: true }
+  }
+  kastaVidFel(await supabase.from('objekt_schema').delete().eq('id', schemaId), 'ta bort schemaraden')
+  return { ok: true }
+}
+
+/** Lägger någon i standardbemanningen för en veckodag. */
+export async function setSchemaPersonal(schemaId, personalId, { roll = null, tid_in = null, tid_ut = null } = {}) {
+  if (!schemaId || !personalId) throw new ApiError('Schemarad och person måste anges.', { kod: 'ofullstandig' })
+
+  const rad = {
+    schema_id: schemaId, personal_id: personalId, roll,
+    tid_in: schemaTid(tid_in, 'Tiden in', false),
+    tid_ut: schemaTid(tid_ut, 'Tiden ut', false)
+  }
+
+  if (!hasSupabase) {
+    const i = db.schemaPersonal.findIndex((sp) => sp.schema_id === schemaId && sp.personal_id === personalId)
+    if (i >= 0) db.schemaPersonal[i] = rad
+    else db.schemaPersonal.push(rad)
+    return { ...rad, initialer: personalMed(personalId)?.initialer, namn: personalMed(personalId)?.namn }
+  }
+
+  const data = kravRad(
+    await supabase.from('schema_personal').upsert(rad, { onConflict: 'schema_id,personal_id' })
+      .select('*, personal:personal_id ( initialer, namn )').maybeSingle(),
+    'spara standardbemanningen'
+  )
+  return { ...data, initialer: data.personal?.initialer, namn: data.personal?.namn }
+}
+
+export async function removeSchemaPersonal(schemaId, personalId) {
+  if (!hasSupabase) {
+    const i = db.schemaPersonal.findIndex((sp) => sp.schema_id === schemaId && sp.personal_id === personalId)
+    if (i >= 0) db.schemaPersonal.splice(i, 1)
+    return { ok: true }
+  }
+  kastaVidFel(
+    await supabase.from('schema_personal').delete().eq('schema_id', schemaId).eq('personal_id', personalId),
+    'ta bort personen ur schemat'
+  )
+  return { ok: true }
+}
+
+/**
+ * Skapar pass ur schemat för de kommande dagarna, för ALLA aktiva objekt.
+ *
+ * Idempotent: en dag som redan har ett pass lämnas orörd. Returnerar hur många
+ * pass som faktiskt skapades och hur många dagar som redan var upplagda, så
+ * adminpanelen kan säga vad som hände i stället för bara "klart".
+ */
+export async function skapaPassFranSchema(dagar = 14) {
+  const antal = Number(dagar)
+  if (!Number.isInteger(antal) || antal < 1 || antal > 90) {
+    throw new ApiError('Antal dagar måste vara mellan 1 och 90.', { kod: 'ogiltigt_antal' })
+  }
+
+  if (!hasSupabase) {
+    let skapade = 0
+    let fanns = 0
+    const idag = new Date()
+    for (let n = 0; n < antal; n++) {
+      const d = new Date(idag)
+      d.setDate(d.getDate() + n)
+      // getDay(): 0 = söndag. Schemat är ISO, där söndag är 7.
+      const veckodag = d.getDay() === 0 ? 7 : d.getDay()
+      const datum = localISO(d)
+
+      for (const rad of db.objektSchema) {
+        if (!rad.aktiv || rad.veckodag !== veckodag) continue
+        if (!db.objekt.find((o) => o.id === rad.objekt_id)?.aktiv) continue
+        if (db.pass.some((p) => p.objekt_id === rad.objekt_id && p.datum === datum)) { fanns++; continue }
+
+        const nyttPass = {
+          id: db.newId(), objekt_id: rad.objekt_id, datum,
+          starttid: rad.starttid, sluttid: rad.sluttid, status: 'oppet'
+        }
+        db.pass.push(nyttPass)
+        for (const sp of db.schemaPersonal.filter((x) => x.schema_id === rad.id)) {
+          db.passPersonal.push({
+            pass_id: nyttPass.id, personal_id: sp.personal_id,
+            roll: sp.roll, tid_in: sp.tid_in, tid_ut: sp.tid_ut
+          })
+        }
+        skapade++
+      }
+    }
+    return { skapade, fanns }
+  }
+
+  // Generatorn ligger i databasen. Den skriver i pass och pass_personal, som
+  // bara admin får röra, och kontrollerar därför själv att anroparen är admin.
+  const data = kastaVidFel(
+    await supabase.rpc('skapa_pass_fran_schema', { p_dagar: antal }),
+    'skapa pass ur schemat'
+  )
+  const rader = data || []
+  return {
+    skapade: rader.filter((r) => r.skapat).length,
+    fanns: rader.filter((r) => !r.skapat).length
+  }
+}
+
 export { INCIDENT_TYPES }

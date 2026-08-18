@@ -123,6 +123,7 @@ src/
       ReviewList.jsx # pass att granska / skickade
       ReportDetail.jsx # sammanställd rapport + skicka
       Objekt.jsx     # hotellen: namn, kod, standardtider, mottagare, instruktioner
+      Veckoschema.jsx # normalveckan per objekt + generera pass ur den
       Bemanning.jsx  # lägg upp pass + bemanna det (styr åtkomst)
       Staff.jsx      # personal & behörighet (koppla objekt)
 supabase/
@@ -153,6 +154,7 @@ Vad som täcks:
 | `lib/postgres-format.test.js` | att appen tål databasens format (t.ex. `14:30:00`) |
 | `lib/rattelser.test.js` | ordning, statistik och spärrar för rättelser |
 | `lib/utkorg.test.js` | offlinekön: ordning, omskick, nekade inlägg |
+| `lib/schema.test.js` | veckoschemat och generatorn: tider, dubbletter, pausade dagar |
 | `lib/realtid.test.js` | vad prenumerationen beställer, och när den räknas som uppe |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
 | `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
@@ -218,6 +220,39 @@ Kontaktperson och telefon visas också i passloggen, med klickbart nummer.
 **Objekt raderas aldrig, bara inaktiveras.** Främmande nycklarna kaskaderar: en radering
 skulle ta med sig objektets alla pass, all bemanning och alla inlägg — även rapporter som
 gått till kund. Ett inaktivt objekt försvinner ur alla listor men behåller sin historik.
+
+## Veckoschema
+
+Bemanningen lades upp för hand varje dag: samma objekt, samma tider, ofta samma
+personer. Under **Veckoschema** beskrivs i stället hur en normalvecka ser ut på
+objektet — vilka dagar det bemannas, vilka tider, och vilka som normalt jobbar.
+Knappen *Skapa passen* lägger upp passen framåt ur det.
+
+Två regler gör det ofarligt att köra om:
+
+- **Schemat skapar pass, det styr dem inte.** En dag som redan har ett pass rörs
+  aldrig. Ändrade tider, extrapersonal och sjukfrånvaro sätts på passet under
+  Bemanning och står kvar.
+- **Generatorn är idempotent.** Kör den varje vecka, varje dag, eller två gånger i
+  rad — resultatet blir detsamma, och den säger hur många pass som faktiskt
+  skapades.
+
+Passet dateras sin startdag, så ett nattpass fredag 22:00–06:00 hör till *fredagens*
+schemarad, inte lördagens. Veckodagarna är ISO (1 = måndag), samma som databasen
+räknar.
+
+Generatorn ligger i databasen (`skapa_pass_fran_schema`) och kontrollerar själv att
+anroparen är administratör — den skriver i `pass` och `pass_personal`, som ingen
+annan får röra. Vill du köra den automatiskt varje natt kan den schemaläggas med
+[pg_cron](https://supabase.com/docs/guides/database/extensions/pg_cron):
+
+```sql
+select cron.schedule('pass-ur-schema', '0 3 * * *', $$select skapa_pass_fran_schema(14)$$);
+```
+
+Notera att pg_cron kör som databasägare, inte som en inloggad admin — vill du
+schemalägga den vägen behöver anropet gå via en wrapper som sätter rätt roll, eller
+så kör du den från adminpanelen tills det behovet finns.
 
 ## Pass över midnatt
 

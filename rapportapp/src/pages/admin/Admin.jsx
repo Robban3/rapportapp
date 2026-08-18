@@ -6,6 +6,7 @@ import ReportDetail from './ReportDetail.jsx'
 import Staff from './Staff.jsx'
 import Bemanning from './Bemanning.jsx'
 import Objekt from './Objekt.jsx'
+import Veckoschema from './Veckoschema.jsx'
 import Ikon from '../../components/Ikon.jsx'
 import TemaKnapp from '../../components/TemaKnapp.jsx'
 
@@ -36,6 +37,7 @@ export default function Admin() {
 
           <div className="navlbl">Administration</div>
           <NavLink to="/admin/objekt" className={aktiv}><Ikon namn="objekt" />Objekt</NavLink>
+          <NavLink to="/admin/schema" className={aktiv}><Ikon namn="schema" />Veckoschema</NavLink>
           <NavLink to="/admin/bemanning" className={aktiv}><Ikon namn="bemanning" />Bemanning</NavLink>
           <NavLink to="/admin/personal" className={aktiv}><Ikon namn="personal" />Personal &amp; behörighet</NavLink>
 
@@ -64,6 +66,7 @@ export default function Admin() {
             <Route path="skickade" element={<ReviewList key="skickade" status={['skickat']} title="Skickade rapporter" />} />
             <Route path="pass/:passId" element={<ReportDetail />} />
             <Route path="objekt" element={<Objekt />} />
+            <Route path="schema" element={<Veckoschema />} />
             <Route path="bemanning" element={<Bemanning />} />
             <Route path="personal" element={<Staff />} />
           </Routes>

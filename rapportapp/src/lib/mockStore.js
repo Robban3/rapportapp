@@ -112,9 +112,26 @@ inlagg.push({
   skapad_at: new Date().toISOString()
 })
 
+// Veckoschema: hur en normalvecka ser ut på objektet. Demodatan har fredag
+// och lördag på Clarion Draken, så "skapa pass ur schemat" har något att
+// skapa utan att någon först måste fylla i ett schema.
+const objektSchema = [
+  { id: 's1', objekt_id: 'o1', veckodag: 5, starttid: '14:30', sluttid: '03:00', aktiv: true },
+  { id: 's2', objekt_id: 'o1', veckodag: 6, starttid: '14:30', sluttid: '03:00', aktiv: true }
+]
+
+let schemaPersonal = [
+  { schema_id: 's1', personal_id: 'p1', roll: 'Värd', tid_in: '14:30', tid_ut: '23:30' },
+  { schema_id: 's1', personal_id: 'p4', roll: 'Ordningsvakt', tid_in: '20:00', tid_ut: '03:00' },
+  { schema_id: 's2', personal_id: 'p1', roll: 'Värd', tid_in: '14:30', tid_ut: '23:30' },
+  { schema_id: 's2', personal_id: 'p3', roll: 'Ordningsvakt', tid_in: '16:00', tid_ut: '01:30' }
+]
+
 export const db = {
-  objekt, personal, pass, passPersonal, inlagg,
+  objekt, personal, pass, passPersonal, inlagg, objektSchema,
   get personalObjekt() { return personalObjekt },
   set personalObjekt(v) { personalObjekt = v },
+  get schemaPersonal() { return schemaPersonal },
+  set schemaPersonal(v) { schemaPersonal = v },
   newId: id
 }

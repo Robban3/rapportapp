@@ -355,6 +355,26 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   border-radius:var(--r-sm);padding:3px 9px;min-width:31px;text-align:center;color:var(--accent);
   font-variant-numeric:tabular-nums;}
 
+/* -------------------------------------------------- admin — veckoschema */
+.schemadag{border:1px solid var(--line);border-radius:var(--r);padding:13px 15px;margin-top:12px;
+  background:var(--surface2);}
+.schemadag.av{opacity:.55;}
+.schemadag-topp{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.schemadag .dagnamn{font-weight:800;font-size:13.5px;min-width:74px;}
+.schemadag .till{color:var(--dim);}
+.schemadag .tinput{max-width:78px;text-align:center;}
+.schemadag-topp .linkbtn{margin-left:0;}
+.schemadag-topp .linkbtn:first-of-type{margin-left:auto;}
+.linkbtn.fara{color:var(--alert);}
+.schema-tom{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:10px;}
+.schema-personal{margin-top:11px;display:flex;flex-direction:column;gap:7px;}
+.sp-rad{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.sp-rad .sp-namn{font-weight:700;font-size:12.5px;min-width:96px;}
+.sp-rad select{max-width:150px;}
+.sp-rad .tinput{max-width:78px;text-align:center;}
+.lagg-till{margin-top:11px;max-width:290px;}
+.ny-dag{border-top:1px solid var(--line);margin-top:20px;padding-top:16px;}
+
 /* -------------------------------------------------- admin — objekt */
 .objekt-form{border-top:1px solid var(--line);margin-top:22px;padding-top:20px;}
 .objekt-form textarea{resize:vertical;line-height:1.55;}
