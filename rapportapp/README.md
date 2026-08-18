@@ -9,6 +9,9 @@ Kör direkt mot inbyggd seed-data tills du kopplar ett eget Supabase-projekt.
 
 ## Snabbstart
 
+Kräver **Node 20.19+ eller 22.12+** (`node --version`). Verktygskedjan bygger på
+Vite 8, som inte startar på äldre Node.
+
 ```bash
 npm install
 npm run dev

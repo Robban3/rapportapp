@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Rapportapp — passrapportering för hotellvärdar. React-PWA + Supabase.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -23,15 +26,15 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.4",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.5.4",
     "globals": "^17.11.0",
-    "jsdom": "^25.0.1",
-    "vite": "^5.4.8",
-    "vite-plugin-pwa": "^0.20.5",
-    "vitest": "^2.1.9"
+    "jsdom": "^28.0.0",
+    "vite": "^8.2.1",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.10"
   }
 }
