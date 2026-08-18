@@ -87,7 +87,7 @@ export async function objectsForStaff(personalId) {
   }
   const svar = await supabase
     .from('personal_objekt')
-    .select('objekt:objekt_id ( id, namn, kod, kund_epost, aktiv )')
+    .select('objekt:objekt_id ( * )')
     .eq('personal_id', personalId)
   const data = kastaVidFel(svar, 'hämta dina objekt')
   return (data || []).map((r) => r.objekt).filter((o) => o && o.aktiv)
@@ -579,19 +579,19 @@ export async function report(passId) {
  * kedjan byggs i Fas 1.2 som en Edge Function. Returvärdet säger därför
  * `utskickat: false`, så UI:t inte kan påstå något annat för administratören.
  */
-export async function lockAndSend(passId, epost) {
+export async function lockAndSend(passId, mottagare = []) {
   if (!hasSupabase) {
     const p = db.pass.find((x) => x.id === passId)
     if (!p) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
     p.status = 'skickat'
     p.skickad_at = new Date().toISOString()
-    return { ok: true, epost, utskickat: false }
+    return { ok: true, mottagare, utskickat: false }
   }
   kastaVidFel(
     await supabase.from('pass').update({ status: 'skickat', skickad_at: new Date().toISOString() }).eq('id', passId),
     'låsa passet'
   )
-  return { ok: true, epost, utskickat: false }
+  return { ok: true, mottagare, utskickat: false }
 }
 
 // ----------------------------------------------- admin: personal & behörighet
@@ -629,10 +629,122 @@ export async function addStaff({ namn, initialer, roll, epost }) {
   return kravRad(svar, 'lägga till personalen')
 }
 
-export async function listObjects() {
-  if (!hasSupabase) return clone([...db.objekt].sort((a, b) => a.namn.localeCompare(b.namn, 'sv')))
-  const svar = await supabase.from('objekt').select('*').order('namn')
-  return kastaVidFel(svar, 'hämta objekten') || []
+export async function listObjects({ inklInaktiva = false } = {}) {
+  if (!hasSupabase) {
+    return clone(db.objekt.filter((o) => inklInaktiva || o.aktiv))
+      .sort((a, b) => a.namn.localeCompare(b.namn, 'sv'))
+  }
+  let fraga = supabase.from('objekt').select('*').order('namn')
+  if (!inklInaktiva) fraga = fraga.eq('aktiv', true)
+  return kastaVidFel(await fraga, 'hämta objekten') || []
+}
+
+// ----------------------------------------------------------- admin: objekt
+const EPOST_MONSTER = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Städar ett objektformulär till databasens form.
+ *
+ * Rapportmottagarna är en lista, inte ett fält: rapporten går sällan till en
+ * enda adress. Tomma rader tas bort, adresserna normaliseras och dubbletter
+ * fälls ihop, så att samma mottagare inte får rapporten två gånger.
+ */
+function stadaObjekt(form) {
+  const namn = String(form.namn || '').trim()
+  if (!namn) throw new ApiError('Objektet måste ha ett namn.', { kod: 'ofullstandig' })
+
+  const kod = String(form.kod || '').trim().toUpperCase() || null
+
+  const mottagare = []
+  for (const rad of form.rapportmottagare || []) {
+    const adress = String(rad || '').trim().toLowerCase()
+    if (!adress) continue
+    if (!EPOST_MONSTER.test(adress)) {
+      throw new ApiError(`"${adress}" ser inte ut som en e-postadress.`, { kod: 'ogiltig_epost' })
+    }
+    if (!mottagare.includes(adress)) mottagare.push(adress)
+  }
+
+  const tid = (v, etikett) => {
+    const rat = String(v ?? '').trim()
+    if (!rat) return null
+    const tolkad = normalizeKlockslag(rat)
+    if (!tolkad) throw new ApiError(`${etikett} går inte att tolka. Skriv den som HH:MM.`, { kod: 'ogiltig_tid' })
+    return tolkad
+  }
+
+  const text = (v) => {
+    const rat = String(v ?? '').trim()
+    return rat || null
+  }
+
+  return {
+    namn, kod, rapportmottagare: mottagare,
+    standard_starttid: tid(form.standard_starttid, 'Standardstarttiden'),
+    standard_sluttid: tid(form.standard_sluttid, 'Standardsluttiden'),
+    kontaktperson: text(form.kontaktperson),
+    kontakt_telefon: text(form.kontakt_telefon),
+    instruktioner: text(form.instruktioner)
+  }
+}
+
+export async function addObject(form) {
+  const rad = { ...stadaObjekt(form), aktiv: true }
+
+  if (!hasSupabase) {
+    if (rad.kod && db.objekt.some((o) => o.kod === rad.kod)) {
+      throw new ApiError('Objektkoden används redan.', { kod: 'dublett' })
+    }
+    const sparat = { ...rad, id: db.newId() }
+    db.objekt.push(sparat)
+    return clone(sparat)
+  }
+
+  const svar = await supabase.from('objekt').insert(rad).select().maybeSingle()
+  if (svar.error?.code === '23505') {
+    throw new ApiError('Objektkoden används redan.', { orsak: svar.error, kod: 'dublett' })
+  }
+  return kravRad(svar, 'lägga till objektet')
+}
+
+export async function updateObject(objektId, form) {
+  const rad = stadaObjekt(form)
+
+  if (!hasSupabase) {
+    const o = db.objekt.find((x) => x.id === objektId)
+    if (!o) throw new ApiError('Objektet finns inte.', { kod: 'saknas' })
+    if (rad.kod && db.objekt.some((x) => x.kod === rad.kod && x.id !== objektId)) {
+      throw new ApiError('Objektkoden används redan.', { kod: 'dublett' })
+    }
+    Object.assign(o, rad)
+    return clone(o)
+  }
+
+  const svar = await supabase.from('objekt').update(rad).eq('id', objektId).select().maybeSingle()
+  if (svar.error?.code === '23505') {
+    throw new ApiError('Objektkoden används redan.', { orsak: svar.error, kod: 'dublett' })
+  }
+  return kravRad(svar, 'spara objektet')
+}
+
+/**
+ * Objekt raderas aldrig, bara inaktiveras.
+ *
+ * Främmande nycklarna kaskaderar: en radering skulle ta med sig objektets alla
+ * pass, all bemanning och alla inlägg — inklusive rapporter som redan gått till
+ * kund. Inaktivering döljer objektet i listorna och lämnar historiken orörd.
+ */
+export async function setObjectAktiv(objektId, aktiv) {
+  if (!hasSupabase) {
+    const o = db.objekt.find((x) => x.id === objektId)
+    if (!o) throw new ApiError('Objektet finns inte.', { kod: 'saknas' })
+    o.aktiv = Boolean(aktiv)
+    return clone(o)
+  }
+  return kravRad(
+    await supabase.from('objekt').update({ aktiv: Boolean(aktiv) }).eq('id', objektId).select().maybeSingle(),
+    aktiv ? 'aktivera objektet' : 'inaktivera objektet'
+  )
 }
 
 export async function staffObjects(personalId) {

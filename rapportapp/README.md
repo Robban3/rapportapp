@@ -81,6 +81,7 @@ src/
       Admin.jsx      # adminlayout + routing
       ReviewList.jsx # pass att granska / skickade
       ReportDetail.jsx # sammanställd rapport + skicka
+      Objekt.jsx     # hotellen: namn, kod, standardtider, mottagare, instruktioner
       Bemanning.jsx  # lägg upp pass + bemanna det (styr åtkomst)
       Staff.jsx      # personal & behörighet (koppla objekt)
 supabase/
@@ -107,6 +108,23 @@ pass som pågår), **Ej bemannad** (pass pågår, men du står inte på det) och
 
 Starttiden är inte kosmetisk: `sortKey()` räknar inläggens ordning från den, så ändras den
 i efterhand räknar `setPassTider()` om `sortnyckel` för passets alla inlägg.
+
+## Objekt
+
+Hotellen läggs upp under **Admin → Objekt**. Utöver namn och objektkod bär objektet
+tre saker som appen använder aktivt:
+
+| Fält | Vad det gör |
+|------|-------------|
+| Standardtider | Förifylls när du lägger upp ett pass under Bemanning. Sluttiden är den appen behöver för att veta när loggen stänger |
+| Rapportmottagare | En **lista** av adresser — rapporten går sällan till bara en. Normaliseras, dubbletter fälls ihop |
+| Instruktioner | Visas för värdarna högst upp i passloggen, ovanför inläggen så de inte hamnar i rapporten |
+
+Kontaktperson och telefon visas också i passloggen, med klickbart nummer.
+
+**Objekt raderas aldrig, bara inaktiveras.** Främmande nycklarna kaskaderar: en radering
+skulle ta med sig objektets alla pass, all bemanning och alla inlägg — även rapporter som
+gått till kund. Ett inaktivt objekt försvinner ur alla listor men behåller sin historik.
 
 ## Pass över midnatt
 

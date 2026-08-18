@@ -61,7 +61,14 @@ export default function Bemanning() {
       if (!p) {
         setPass(false)
         setRoster([])
-        setTider({ starttid: tidigare?.pass.starttid || '', sluttid: '' })
+        // Förra passet väger tyngst — det speglar hur det faktiskt ser ut just
+        // här. Finns inget sådant tas objektets standardtider. Utan endera
+        // fick admin knappa in samma tider varje kväll.
+        const valt = objekt.find((o) => o.id === objektId)
+        setTider({
+          starttid: tidigare?.pass.starttid || valt?.standard_starttid || '',
+          sluttid: tidigare?.pass.sluttid || valt?.standard_sluttid || ''
+        })
         return
       }
 
@@ -74,7 +81,7 @@ export default function Bemanning() {
     } catch (f) {
       if (aktuell()) setLaddfel(f)
     }
-  }, [objektId, datum])
+  }, [objektId, datum, objekt])
 
   useEffect(() => { ladda() }, [ladda])
 
@@ -99,9 +106,8 @@ export default function Bemanning() {
     // Sluttiden från förra passet följer med — nästan alla pass på ett objekt
     // har samma tider, och utan sluttid vet appen inte när passet är slut.
     // Starttiden utelämnas medvetet: utelämnat betyder oförändrat.
-    const uppdaterat = forra?.pass.sluttid
-      ? await setPassTider(p.id, { sluttid: forra.pass.sluttid })
-      : p
+    const slutTid = tider.sluttid || forra?.pass.sluttid
+    const uppdaterat = slutTid ? await setPassTider(p.id, { sluttid: slutTid }) : p
     setPass(uppdaterat)
     setTider({ starttid: uppdaterat.starttid || '', sluttid: uppdaterat.sluttid || '' })
     setRoster(await rosterForPass(uppdaterat.id))

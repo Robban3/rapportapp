@@ -9,7 +9,7 @@ export default function ReportDetail() {
   const nav = useNavigate()
   const [data, setData] = useState(null)
   const [laddfel, setLaddfel] = useState(null)
-  const [epost, setEpost] = useState('')
+  const [mottagare, setMottagare] = useState([])
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [sandfel, setSandfel] = useState('')
@@ -19,7 +19,7 @@ export default function ReportDetail() {
     setLaddfel(null)
     setData(null)
     report(passId)
-      .then((r) => { setData(r); setEpost(r.objekt?.kund_epost || '') })
+      .then((r) => { setData(r); setMottagare(r.objekt?.rapportmottagare || []) })
       .catch(setLaddfel)
   }, [passId])
 
@@ -38,7 +38,7 @@ export default function ReportDetail() {
     setBusy(true)
     setSandfel('')
     try {
-      await lockAndSend(passId, epost)
+      await lockAndSend(passId, mottagare)
       setSent(true)
       setBekraftar(false)
     } catch (fel) {
@@ -98,9 +98,20 @@ export default function ReportDetail() {
             <div className="stat" key={t.key}><span className="num">{stats[t.key] || 0}</span>{t.kort}</div>
           ))}
 
+          {/* Mottagarna hör till objektet, inte till det enskilda passet, och
+              redigeras därför under Objekt. Ett fritt fält här hade gjort det
+              oklart vilken adress som faktiskt gäller. */}
           <div className="field">
-            <label htmlFor="kund-epost">Kundens e-post</label>
-            <input id="kund-epost" type="email" value={epost} onChange={(e) => setEpost(e.target.value)} />
+            {/* Ingen kontroll att peka på — mottagarna är läsning här och
+                redigeras under Objekt. Därför mini-lbl och inte label. */}
+            <div className="mini-lbl" style={{ marginBottom: 5 }}>Rapporten skickas till</div>
+            {mottagare.length === 0 ? (
+              <div className="err" role="alert" style={{ height: 'auto' }}>
+                Objektet saknar mottagare. Lägg till under Objekt innan du låser.
+              </div>
+            ) : (
+              <div className="mott-lista">{mottagare.map((m) => <span className="mott" key={m}>{m}</span>)}</div>
+            )}
           </div>
 
           {isSent ? (
@@ -108,11 +119,15 @@ export default function ReportDetail() {
             // rapporten får inte påstå att den gjort det.
             <div className="empty">
               <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 6 }}>Rapporten är låst.</div>
-              <div>Utskicket till {epost || 'kunden'} sker manuellt tills automatiken är på plats.</div>
+              <div>
+                Utskicket till {mottagare.length ? mottagare.join(', ') : 'kunden'} sker manuellt
+                tills automatiken är på plats.
+              </div>
             </div>
           ) : (
             <>
-              <button className="btn primary block" onClick={() => setBekraftar(true)} disabled={busy}>Lås rapporten</button>
+              <button className="btn primary block" onClick={() => setBekraftar(true)}
+                disabled={busy || mottagare.length === 0}>Lås rapporten</button>
               <button className="btn block" style={{ marginTop: 8 }} onClick={() => window.print()}>Förhandsgranska / skriv ut</button>
             </>
           )}
@@ -130,6 +145,7 @@ export default function ReportDetail() {
               <div className="rrow"><div className="rt">Objekt</div><div>{objekt?.namn}</div></div>
               <div className="rrow"><div className="rt">Pass</div><div>{pass.datum} · {pass.starttid}–{pass.sluttid || '—'}</div></div>
               <div className="rrow"><div className="rt">Inlägg</div><div>{entries.length} st · {roster.length} i personalen</div></div>
+              <div className="rrow"><div className="rt">Till</div><div>{mottagare.join(', ')}</div></div>
             </div>
             <div className="row-end">
               <button className="btn" onClick={() => setBekraftar(false)} disabled={busy}>Avbryt</button>

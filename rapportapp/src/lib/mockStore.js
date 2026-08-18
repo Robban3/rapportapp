@@ -8,9 +8,25 @@ let seq = 100
 const id = () => String(++seq)
 
 const objekt = [
-  { id: 'o1', namn: 'Clarion Draken Hotel', kod: 'DRAKEN', kund_epost: 'drift@clariondraken.se', aktiv: true },
-  { id: 'o2', namn: 'Grand Central',        kod: 'GRAND',  kund_epost: 'reception@grandcentral.se', aktiv: true },
-  { id: 'o3', namn: 'Scandic Väst',         kod: 'SCVAST', kund_epost: 'drift@scandicvast.se', aktiv: true }
+  {
+    id: 'o1', namn: 'Clarion Draken Hotel', kod: 'DRAKEN', aktiv: true,
+    rapportmottagare: ['drift@clariondraken.se', 'reception@clariondraken.se'],
+    standard_starttid: '14:30', standard_sluttid: '03:00',
+    kontaktperson: 'Obie Nyström', kontakt_telefon: '070-123 45 67',
+    instruktioner: 'Radio hämtas hos Obie i receptionen. Rooftop stänger 01:00, dramahallen ska vara låst efter 19:00.'
+  },
+  {
+    id: 'o2', namn: 'Grand Central', kod: 'GRAND', aktiv: true,
+    rapportmottagare: ['reception@grandcentral.se'],
+    standard_starttid: '22:00', standard_sluttid: '06:00',
+    kontaktperson: null, kontakt_telefon: null, instruktioner: null
+  },
+  {
+    id: 'o3', namn: 'Scandic Väst', kod: 'SCVAST', aktiv: true,
+    rapportmottagare: [],
+    standard_starttid: null, standard_sluttid: null,
+    kontaktperson: null, kontakt_telefon: null, instruktioner: null
+  }
 ]
 
 // Ingen PIN-kolumn längre: lösenordet bor i Supabase Auth, och en läsbar

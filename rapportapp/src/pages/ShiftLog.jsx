@@ -188,6 +188,21 @@ export default function ShiftLog() {
         </div>
       </div>
 
+      {/* Objektspecifik information som värden annars måste minnas eller
+          ringa efter. Ligger ovanför loggen, inte i den, så den inte hamnar
+          i rapporten till kund. */}
+      {(objekt.instruktioner || objekt.kontaktperson) && (
+        <div className="objekt-info">
+          {objekt.instruktioner && <div className="oi-text">{objekt.instruktioner}</div>}
+          {objekt.kontaktperson && (
+            <div className="oi-kontakt">
+              Kontakt: <b>{objekt.kontaktperson}</b>
+              {objekt.kontakt_telefon && <> · <a href={`tel:${objekt.kontakt_telefon.replace(/\s/g, '')}`}>{objekt.kontakt_telefon}</a></>}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="log-meta">Passlogg · {entries.length} inlägg</div>
       <div className="entries" aria-live="polite">
         {entries.length === 0 && <div className="empty">Inget skrivet i passet ännu.</div>}
