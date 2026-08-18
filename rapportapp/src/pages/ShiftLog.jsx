@@ -4,6 +4,7 @@ import { objectsForStaff, aktivtPassForStaff, passById, entriesForPass, addEntry
 import { useSession } from '../state/session.jsx'
 import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
 import { felText } from '../lib/errors.js'
+import { koFor, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel } from '../lib/utkorg.js'
 import Feltillstand from '../components/Feltillstand.jsx'
 
 const POLL_MS = 15000
@@ -32,6 +33,8 @@ export default function ShiftLog() {
   const [rattar, setRattar] = useState(null)
   const [busy, setBusy] = useState(false)
   const [skrivfel, setSkrivfel] = useState('')
+  // Inlägg som skrivits utan nät och ännu inte kommit fram.
+  const [ko, setKo] = useState([])
   const bottom = useRef(null)
 
   const ladda = useCallback(async () => {
@@ -93,8 +96,16 @@ export default function ShiftLog() {
     if (!passId) return
     let levande = true
 
-    const load = () => {
+    const load = async () => {
       if (document.hidden || !navigator.onLine) return
+
+      // Utkorgen töms först. Annars hämtas loggen, de köade inläggen skickas
+      // strax därefter, och värden ser dem inte förrän nästa poll.
+      try {
+        await flusha(staff.id, addEntry)
+      } catch { /* flusha markerar själv vad som inte gick fram */ }
+      if (!levande) return
+      setKo(koFor(staff.id, passId))
 
       passById(passId)
         .then((farskt) => { if (levande && farskt) setPass(farskt) })
@@ -104,6 +115,9 @@ export default function ShiftLog() {
         .then((e) => { if (levande) setEntries(e) })
         .catch(() => { /* tyst: nästa poll försöker igen, inget går förlorat */ })
     }
+
+    // Kön visas direkt, även offline när load() inte gör något.
+    setKo(koFor(staff.id, passId))
 
     load()
     const iv = setInterval(load, POLL_MS)
@@ -118,7 +132,15 @@ export default function ShiftLog() {
       window.removeEventListener('online', load)
       window.removeEventListener('focus', load)
     }
-  }, [passId])
+  }, [passId, staff.id])
+
+  function rullaNed() {
+    requestAnimationFrame(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }))
+  }
+
+  function rensaFalt() {
+    setMsg(''); setInc(null); setTid(nowHHMM()); setRattar(null)
+  }
 
   async function send() {
     if (!msg.trim() || !pass || busy) return
@@ -128,25 +150,61 @@ export default function ShiftLog() {
       return
     }
 
+    const post = {
+      passId: pass.id, personalId: staff.id, tid,
+      meddelande: msg.trim(), incidentTyp: inc,
+      passStartTid: pass.starttid,
+      rattarId: rattar?.id ?? null
+    }
+
     setBusy(true)
     setSkrivfel('')
+
+    // Källarplan, garage och hisschakt. Utan nät går inlägget i utkorgen med
+    // en gång — det är snabbare än att vänta ut en timeout, och texten är
+    // kvar även om appen stängs.
+    if (!navigator.onLine) {
+      koa(post)
+      setBusy(false)
+      return
+    }
+
     try {
-      await addEntry({
-        passId: pass.id, personalId: staff.id, tid,
-        meddelande: msg.trim(), incidentTyp: inc,
-        passStartTid: pass.starttid,
-        rattarId: rattar?.id ?? null
-      })
+      await addEntry(post)
       // Rensa först när inlägget faktiskt är sparat.
-      setMsg(''); setInc(null); setTid(nowHHMM()); setRattar(null)
+      rensaFalt()
       setEntries(await entriesForPass(pass.id))
-      requestAnimationFrame(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }))
+      rullaNed()
     } catch (fel) {
+      // Nätet försvann mitt i: inlägget köas i stället för att gå förlorat.
+      // Ett nekat inlägg (låst pass, fel behörighet) köas däremot inte —
+      // det blir inte rätt av att skickas om.
+      if (arNatverksfel(fel)) koa(post)
       // Texten står kvar i fältet så värden slipper skriva om den.
-      setSkrivfel(felText(fel))
+      else setSkrivfel(felText(fel))
     } finally {
       setBusy(false)
     }
+  }
+
+  function koa(post) {
+    laggIKo(post)
+    setKo(koFor(staff.id, pass.id))
+    rensaFalt()
+    rullaNed()
+  }
+
+  function slangKoat(id) {
+    taBortFranKo(id)
+    setKo(koFor(staff.id, pass.id))
+  }
+
+  async function skickaOm(id) {
+    forsokIgen(id)
+    setKo(koFor(staff.id, pass.id))
+    await flusha(staff.id, addEntry)
+    setKo(koFor(staff.id, pass.id))
+    try { setEntries(await entriesForPass(pass.id)) } catch { /* nästa poll hämtar */ }
   }
 
   function borjaRatta(e) {
@@ -220,7 +278,10 @@ export default function ShiftLog() {
         </div>
       )}
 
-      <div className="log-meta">Passlogg · {entries.length} inlägg</div>
+      <div className="log-meta">
+        Passlogg · {entries.length} inlägg
+        {ko.length > 0 && <span className="ko-rakning">{ko.length} väntar på nät</span>}
+      </div>
       <div className="entries" aria-live="polite">
         {entries.length === 0 && <div className="empty">Inget skrivet i passet ännu.</div>}
         {entries.map((e) => {
@@ -240,7 +301,7 @@ export default function ShiftLog() {
                   {it && <span className="inc-badge">{it.kort}</span>}
                   {/* Rättelser skrivs bara i ett öppet pass, och ett inlägg
                       rättas en gång — resten stoppas ändå av databasen. */}
-                  {!last && !e.ar_rattad && !e.rattar_id && (
+                  {!last && !e.ar_rattad && !e.rattar_id && !ko.some((k) => k.rattarId === e.id) && (
                     <button className="linkbtn ratta-knapp" onClick={() => borjaRatta(e)}>Rätta</button>
                   )}
                 </div>
@@ -248,6 +309,32 @@ export default function ShiftLog() {
             </div>
           )
         })}
+
+        {/* Köade inlägg ligger sist och är tydligt märkta. De hamnar på rätt
+            plats i tidsordningen först när de kommit fram — det är servern som
+            äger loggen, inte telefonen. */}
+        {ko.map((k) => (
+          <div key={k.id} className={'entry mine koad' + (k.fel ? ' koad-fel' : '')}>
+            <div className="t">{k.tid}</div>
+            <div className="body">
+              <div className="msg">{k.meddelande}</div>
+              {k.fel && <div className="ko-fel">{k.fel}</div>}
+              <div className="sig">
+                <span className="av">{staff.initialer?.slice(0, 2)}</span>{staff.initialer}
+                {k.rattarId && <span className="ratt-badge">Rättelse</span>}
+                <span className={'ko-badge' + (k.fel ? ' fel' : '')}>
+                  {k.fel ? 'Kom inte fram' : 'Väntar på nät'}
+                </span>
+                {k.fel && (
+                  <>
+                    <button className="linkbtn" onClick={() => skickaOm(k.id)}>Försök igen</button>
+                    <button className="linkbtn" onClick={() => slangKoat(k.id)}>Ta bort</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
         <div ref={bottom} />
       </div>
 

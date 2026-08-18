@@ -510,7 +510,7 @@ export async function entriesForPass(passId) {
   return ordnaMedRattelser((data || []).map((i) => ({ ...i, signatur: i.personal?.initialer })))
 }
 
-export async function addEntry({ passId, personalId, tid, meddelande, incidentTyp = null, passStartTid = null, rattarId = null }) {
+export async function addEntry({ id = null, passId, personalId, tid, meddelande, incidentTyp = null, passStartTid = null, rattarId = null }) {
   const text = String(meddelande || '').trim()
   if (!text) throw new ApiError('Inlägget saknar text.', { kod: 'tom_text' })
 
@@ -532,11 +532,15 @@ export async function addEntry({ passId, personalId, tid, meddelande, incidentTy
     throw new ApiError('Passet är låst och rapporten skickad. Be en administratör lägga till rättelsen.', { kod: 'last' })
   }
 
+  // Id:t får komma utifrån. Utkorgen sätter ett innan inlägget lämnar
+  // telefonen, så att ett omskick efter ett tappat svar krockar med
+  // primärnyckeln i stället för att bli en dubblett i rapporten.
   const row = {
     pass_id: passId, personal_id: personalId, tid: angivenTid,
     sortnyckel: sortKey(angivenTid, passStartTid), meddelande: text,
     incident_typ: incidentTyp, last: true, rattar_id: rattarId
   }
+  if (id) row.id = id
 
   // Ett inlägg får rättas en gång, och en rättelse får inte rättas. Databasen
   // upprätthåller båda, men i demoläget finns ingen databas att luta sig mot.
@@ -553,14 +557,27 @@ export async function addEntry({ passId, personalId, tid, meddelande, incidentTy
   }
 
   if (!hasSupabase) {
-    const saved = { ...row, id: db.newId(), skapad_at: new Date().toISOString() }
+    const befintligt = id ? db.inlagg.find((i) => i.id === id) : null
+    if (befintligt) return { ...befintligt, signatur: personalMed(befintligt.personal_id)?.initialer }
+    const saved = { ...row, id: id || db.newId(), skapad_at: new Date().toISOString() }
     db.inlagg.push(saved)
     return { ...saved, signatur: personalMed(personalId)?.initialer }
   }
-  const data = kravRad(
-    await supabase.from('inlagg').insert(row).select('*, personal:personal_id ( initialer )').maybeSingle(),
-    'spara inlägget'
-  )
+
+  const svar = await supabase.from('inlagg').insert(row).select('*, personal:personal_id ( initialer )').maybeSingle()
+
+  // 23505 = unique_violation. Inlägget ligger redan i databasen: svaret på
+  // det första försöket kom bara aldrig fram. Det är alltså en lyckad
+  // skrivning, inte ett fel att visa för värden.
+  if (svar?.error?.code === '23505' && id) {
+    const fanns = kravRad(
+      await supabase.from('inlagg').select('*, personal:personal_id ( initialer )').eq('id', id).maybeSingle(),
+      'hämta det sparade inlägget'
+    )
+    return { ...fanns, signatur: fanns.personal?.initialer }
+  }
+
+  const data = kravRad(svar, 'spara inlägget')
   return { ...data, signatur: data.personal?.initialer }
 }
 

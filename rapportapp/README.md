@@ -108,6 +108,8 @@ src/
     mockStore.js   # seed-data i minnet för demoläge
     time.js        # tidsparsning + sortnyckel (nattpass hanteras)
     incidents.js   # incidenttyper som driver statistiken
+    utkorg.js      # kö för inlägg som skrivs utan nät
+    tema.js        # ljust/mörkt läge
   state/session.jsx# inloggad personal
   pages/
     Login.jsx      # inloggning via Supabase Auth (e-post + lösenord)
@@ -247,6 +249,22 @@ Databasen håller reglerna, inte bara gränssnittet
 Klicka **Rätta** på inlägget i passloggen. Tid, text och tagg förifylls så bara det
 felaktiga behöver skrivas om.
 
+## Utan nät
+
+Hotellpass går i garage, källarplan och hisschakt. Skrivs ett inlägg där hamnar det
+i en **utkorg** i telefonen i stället för att gå förlorat:
+
+- inlägget visas i loggen märkt *Väntar på nät*, streckat
+- kön ligger i `localStorage` och överlever att appen stängs
+- när nätet kommer tillbaka skickas kön i den ordning inläggen skrevs
+- id:t sätts på telefonen, så ett omskick efter ett tappat svar blir **en** rad i
+  rapporten, inte två
+- ett inlägg som *nekas* (låst pass, saknad behörighet) köas inte om i evighet —
+  det märks *Kom inte fram* med orsaken, och värden kan försöka igen eller slänga det
+
+Kön är knuten både till enheten och till personen: loggar någon annan in på samma
+telefon går inte den förras inlägg iväg i hens namn.
+
 ## Datamodell (kort)
 
 - **objekt** — hotellen. **personal** — värdar/OV/garderob, kopplade till ett auth-konto via e-post.
@@ -266,5 +284,3 @@ så ingen manuell ifyllnad krävs vid pass-slut.
 - **Realtid:** `ShiftLog.jsx` pollar var 15:e sekund (pausar när fliken är dold eller
   enheten är offline). Byt till Supabase Realtime (`supabase.channel(...)`) för
   direktuppdatering när flera skriver samtidigt.
-- **Offline-kö:** service workern cachar skalet; lägg till en utgående kö för inlägg
-  som skrivs utan nät och synka när uppkoppling återkommer.
