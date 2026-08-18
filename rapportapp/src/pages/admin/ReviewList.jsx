@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { passList } from '../../lib/api.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
+import Sidhuvud from '../../components/Sidhuvud.jsx'
 
 export default function ReviewList({ status, title }) {
   const [rows, setRows] = useState(null)
@@ -17,9 +18,9 @@ export default function ReviewList({ status, title }) {
   useEffect(() => { ladda() }, [ladda])
 
   return (
-    <div className="panel">
-      <div className="h3">{title}</div>
-      <div className="meta">Välj ett pass för att granska den sammanställda rapporten.</div>
+    <>
+      <Sidhuvud titel={title} beskrivning="Välj ett pass för att granska den sammanställda rapporten." />
+      <div className="panel">
       {fel ? (
         <Feltillstand fel={fel} onForsokIgen={ladda} />
       ) : rows === null ? (
@@ -41,7 +42,8 @@ export default function ReviewList({ status, title }) {
           </tbody>
         </table>
       )}
-    </div>
+      </div>
+    </>
   )
 }
 

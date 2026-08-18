@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listObjects, addObject, updateObject, setObjectAktiv } from '../../lib/api.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
+import Sidhuvud from '../../components/Sidhuvud.jsx'
 
 const TOM_FORM = {
   namn: '', kod: '', rapportmottagare: [''],
@@ -91,12 +92,17 @@ export default function Objekt() {
   const synliga = (objekt || []).filter((o) => visaInaktiva || o.aktiv)
 
   return (
-    <div className="panel">
-      <div className="h3">Objekt</div>
-      <div className="meta">
-        Hotellen ni rapporterar på. Standardtiderna förifylls när du lägger upp ett pass under
-        Bemanning, och instruktionerna visas för värdarna högst upp i passloggen.
-      </div>
+    <>
+      <Sidhuvud
+        titel="Objekt"
+        beskrivning="Hotellen ni rapporterar på. Standardtiderna förifylls när du lägger upp ett pass under Bemanning, och instruktionerna visas för värdarna högst upp i passloggen."
+      >
+        {redigerar === null && (
+          <button className="btn primary" onClick={() => borja(null)}>Nytt objekt</button>
+        )}
+      </Sidhuvud>
+
+      <div className="panel">
 
       {objekt === null ? (
         <div className="empty">Laddar…</div>
@@ -151,9 +157,6 @@ export default function Objekt() {
               <input type="checkbox" checked={visaInaktiva} onChange={(e) => setVisaInaktiva(e.target.checked)} />
               Visa inaktiva
             </label>
-            {redigerar === null && (
-              <button className="btn primary" onClick={() => borja(null)}>Nytt objekt</button>
-            )}
           </div>
 
           {/* Objekt raderas aldrig — kaskaden skulle ta med passen, bemanningen
@@ -239,6 +242,7 @@ export default function Objekt() {
       {fel && redigerar === null && (
         <div className="err" role="alert" style={{ height: 'auto', marginTop: 10 }}>{fel}</div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

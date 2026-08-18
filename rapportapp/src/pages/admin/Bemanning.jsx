@@ -7,6 +7,7 @@ import {
 import { verksamhetsdatum, passFonster } from '../../lib/time.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
+import Sidhuvud from '../../components/Sidhuvud.jsx'
 
 const ROLES = ['Värd', 'Ordningsvakt', 'Garderob']
 const TOM_RAD = { personalId: '', roll: 'Värd', tid_in: '', tid_ut: '' }
@@ -163,12 +164,15 @@ export default function Bemanning() {
   const fonster = pass ? passFonster(pass) : null
 
   return (
-    <div className="panel">
-      <div className="h3">Bemanning</div>
-      <div className="meta">
-        Lägg upp passet och välj vilka som jobbar det. Bara bemannad personal kommer åt passloggen —
-        objektkopplingen under Personal &amp; behörighet avgör bara vem som <em>får</em> bemannas här.
-      </div>
+    <>
+      <Sidhuvud
+        titel="Bemanning"
+        beskrivning={<>Lägg upp passet och välj vilka som jobbar det. Bara bemannad personal kommer åt
+          passloggen — objektkopplingen under Personal &amp; behörighet avgör bara vem som <em>får</em>
+          bemannas här.</>}
+      />
+
+      <div className="panel">
 
       <div className="form-row">
         <div className="field">
@@ -349,6 +353,7 @@ export default function Bemanning() {
       )}
 
       {fel && <div className="err" role="alert" style={{ height: 'auto', marginTop: 12 }}>{fel}</div>}
-    </div>
+      </div>
+    </>
   )
 }

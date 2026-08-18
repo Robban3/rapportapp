@@ -93,7 +93,8 @@ export default function ReportDetail() {
 
       <div>
         <div className="panel">
-          <div className="mini-lbl">Statistik (räknas från taggade inlägg)</div>
+          <div className="mini-lbl">Statistik</div>
+          <p className="stat-hint">Räknas automatiskt från inlägg som taggats med en incidenttyp.</p>
           {INCIDENT_TYPES.map((t) => (
             <div className="stat" key={t.key}><span className="num">{stats[t.key] || 0}</span>{t.kort}</div>
           ))}

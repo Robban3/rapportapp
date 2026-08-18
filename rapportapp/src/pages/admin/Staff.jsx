@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { listStaff, addStaff, listObjects, staffObjects, setStaffObjects, bjudInPersonal } from '../../lib/api.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
+import Sidhuvud from '../../components/Sidhuvud.jsx'
 
 const ROLES = ['Värd', 'Ordningsvakt', 'Garderob', 'Admin']
 const TOM_FORM = { namn: '', initialer: '', roll: 'Värd', epost: '' }
@@ -95,14 +96,13 @@ export default function Staff() {
   if (laddfel) return <div className="panel"><Feltillstand fel={laddfel} onForsokIgen={reload} /></div>
 
   return (
-    <div className="panel">
-      <div className="h3">Personal &amp; behörighet</div>
-      <div className="meta">
-        Lägg till personal och koppla vilka objekt de får rapportera på. En person ser bara sina
-        kopplade objekt i appen. Inloggningen sköts av Supabase Auth: lägg upp personen här med
-        rätt e-post och bjud in samma adress under Authentication → Users, så knyts de ihop
-        automatiskt — i vilken ordning du än gör det.
-      </div>
+    <>
+      <Sidhuvud
+        titel="Personal & behörighet"
+        beskrivning="Lägg till personal och koppla vilka objekt de får rapportera på. En person ser bara sina kopplade objekt i appen. Inloggningen sköts av Supabase Auth — lägg upp personen med rätt e-post och tryck Bjud in, så knyts konto och personalrad ihop automatiskt."
+      />
+
+      <div className="panel">
 
       {staff === null ? (
         <div className="empty">Laddar…</div>
@@ -189,6 +189,7 @@ export default function Staff() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }
