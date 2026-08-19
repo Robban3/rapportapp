@@ -4,3 +4,9 @@ dev-dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Supabase CLI: kopplingen till projektet (project-ref) och lokala
+# containervolymer. Ligger utanför git — därför tappas länken vid en ny
+# klon, och `supabase link --project-ref <ref>` behöver köras om.
+supabase/.temp/
+supabase/.branches/
