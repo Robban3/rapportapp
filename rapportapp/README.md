@@ -182,6 +182,7 @@ Vad som täcks:
 | `lib/schema.test.js` | veckoschemat och generatorn: tider, dubbletter, pausade dagar |
 | `lib/realtid.test.js` | vad prenumerationen beställer, och när den räknas som uppe |
 | `lib/losenord.test.js` | återställning: normalisering, strypning, ingen läcka om vem som finns |
+| `lib/personal.test.js` | avstängning: spärrarna mot att låsa ut sig själv och sista adminen |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
 | `pages/losenord.test.jsx` | återställningssidorna: utgången länk, olika lösenord, inloggning efter byte |
 | `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
@@ -211,6 +212,23 @@ tokenstyrda. Två saker skiljer sig från att bara invertera:
 
 `color-scheme: dark` sätts också, annars ritar webbläsaren datumväljaren och
 kryssrutorna som vita fläckar i en mörk vy.
+
+## När någon slutar
+
+*Stäng av* under **Personal & behörighet** sätter `personal.aktiv = false`. Det är
+den spärr som redan gäller överallt — inloggningen kräver den, och RLS-hjälparna i
+databasen (`aktuell_personal_id`, `ar_admin`, `ar_bemannad`) kollar den vid varje
+anrop. Den avstängda tappar alltså åtkomsten på riktigt, direkt, även om hen sitter
+kvar med en giltig session mitt i ett pass.
+
+Verifierat mot Postgres: en avstängd värd läser noll inlägg och nekas när hen
+försöker skriva (`new row violates row-level security policy`). En värd kan inte
+heller stänga av någon annan — bara admin ändrar personalen.
+
+Personalraden raderas aldrig. Gamla inlägg är signerade med den, och en rapport som
+tappar sin signatur är inte längre ett underlag. Två spärrar finns mot att låsa ut
+sig: du kan inte stänga av dig själv, och den sista aktiva administratören går inte
+att stänga av.
 
 ## Behörighet — två nivåer
 

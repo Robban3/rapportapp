@@ -909,6 +909,57 @@ export async function setObjectAktiv(objektId, aktiv) {
   )
 }
 
+/**
+ * Stänger av eller öppnar upp en person.
+ *
+ * `aktiv` är den spärr som redan gäller överallt: inloggningen kräver den,
+ * och RLS-hjälparna i databasen (aktuell_personal_id, ar_admin, ar_bemannad)
+ * kollar den vid varje anrop. Den som stängs av tappar alltså åtkomsten på
+ * riktigt — inte bara i gränssnittet — även om hen sitter kvar med en giltig
+ * session. Vägen att sätta den saknades dock, så en värd som slutade behöll
+ * sin åtkomst tills någon gick in i Supabase-panelen.
+ *
+ * Personalraden raderas aldrig. Gamla inlägg är signerade med den, och en
+ * rapport som tappar sin signatur är inte längre ett underlag.
+ */
+export async function setStaffAktiv(personalId, aktiv) {
+  const pa = Boolean(aktiv)
+
+  if (!pa) {
+    // Två spärrar mot att låsa ut sig själv eller hela företaget. Att bli av
+    // med administratören kräver annars en resa till Supabase-panelen — precis
+    // det den här funktionen finns för att slippa.
+    const jag = await aktuellPersonal()
+    if (jag && jag.id === personalId) {
+      throw new ApiError('Du kan inte stänga av dig själv.', { kod: 'sig_sjalv' })
+    }
+
+    const personal = await listStaff()
+    const den = personal.find((p) => p.id === personalId)
+    if (!den) throw new ApiError('Personen finns inte.', { kod: 'saknas' })
+
+    const kvarvarandeAdmins = personal.filter((p) => p.aktiv && p.roll === 'Admin' && p.id !== personalId)
+    if (den.roll === 'Admin' && kvarvarandeAdmins.length === 0) {
+      throw new ApiError(
+        'Det måste finnas minst en aktiv administratör. Gör någon annan till admin först.',
+        { kod: 'sista_admin' }
+      )
+    }
+  }
+
+  if (!hasSupabase) {
+    const person = db.personal.find((x) => x.id === personalId)
+    if (!person) throw new ApiError('Personen finns inte.', { kod: 'saknas' })
+    person.aktiv = pa
+    return clone(person)
+  }
+
+  return kravRad(
+    await supabase.from('personal').update({ aktiv: pa }).eq('id', personalId).select().maybeSingle(),
+    pa ? 'aktivera personen' : 'stänga av personen'
+  )
+}
+
 export async function staffObjects(personalId) {
   if (!hasSupabase) return db.personalObjekt.filter(([pid]) => pid === personalId).map(([, oid]) => oid)
   const svar = await supabase.from('personal_objekt').select('objekt_id').eq('personal_id', personalId)

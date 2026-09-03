@@ -155,6 +155,9 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 /* 16px hindrar iOS/iPadOS från att zooma in vid fokus — annars hoppar hela
    layouten när värden trycker i fältet på en surfplatta. */
 .login-form input{font-size:16px;padding:11px 13px;}
+/* Avstängd personal ska synas i listan utan att försvinna ur den. */
+.table tr.avstangd td{opacity:.55;}
+.table tr.avstangd td:last-child{opacity:1;}
 .login-hjalp{text-align:center;margin-top:14px;font-size:12.5px;}
 .login-hjalp a{color:var(--accent);font-weight:700;text-decoration:none;}
 .login-hjalp a:hover{text-decoration:underline;}
