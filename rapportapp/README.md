@@ -156,6 +156,56 @@ inbjudnings- och återställningsmejlen fel, och båda flödena bryts.
   har innehållshash och cachas för alltid.
 - `.node-version` — `22`. Pages väljer annars en äldre Node än vad Vite 8 kräver.
 
+## E-post (Resend)
+
+Tre utskick går över Resend: **rapporten till kunden**, **inbjudan** till ny personal
+och **lösenordsåterställningen**. De två sista skickas av Supabase Auth, den första av
+en Edge Function.
+
+### Rapporten
+
+`Lås och skicka` i rapportvyn anropar Edge-funktionen `skicka-rapport`, som låser
+passet, renderar rapporten och mejlar den till objektets `rapportmottagare`.
+
+```bash
+supabase secrets set RESEND_API_KEY=re_...
+supabase secrets set RAPPORT_AVSANDARE="Rapport <rapport@dindoman.se>"
+supabase functions deploy skicka-rapport
+```
+
+`RAPPORT_AVSANDARE` är valfri och faller tillbaka på `onboarding@resend.dev`.
+
+**Ordningen är medveten:** passet låses först, rapporten renderas ur det låsta
+tillståndet, och därefter skickas mejlet. Tvärtom hade ett inlägg som skrivs i samma
+sekund kunnat hamna i loggen men utanför rapporten — tyst och permanent. Fastnar
+utskicket är passet låst men rapporten omarkerad som skickad, och administratören ser
+**Skicka om**. Ett synligt fel är bättre än ett tyst.
+
+Statistiken räknas om på servern, inte i klienten. Det som står i kundens rapport ska
+komma från databasen.
+
+### Supabase Auth över Resend
+
+Authentication → Emails → SMTP Settings:
+
+| Fält | Värde |
+| --- | --- |
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Resend-API-nyckeln |
+| Sender email | en adress på din verifierade domän |
+
+Utan det här går Supabases inbyggda utskick, men med hård kvot per timme — det är
+byggt för test, inte för en personalstyrka som loggar in.
+
+### Innan något når en riktig kund
+
+Resend tillåter bara `onboarding@resend.dev` som avsändare tills du **verifierat en
+domän**, och med den adressen går mejl bara till ditt eget konto. Utskick till en
+hotelladress kommer alltså att nekas. Verifiera domänen i Resend (DNS-poster för SPF
+och DKIM) innan du testar skarpt.
+
 ## Struktur
 
 ```
@@ -223,6 +273,7 @@ Vad som täcks:
 | `lib/realtid.test.js` | vad prenumerationen beställer, och när den räknas som uppe |
 | `lib/losenord.test.js` | återställning: normalisering, strypning, ingen läcka om vem som finns |
 | `lib/personal.test.js` | avstängning: spärrarna mot att låsa ut sig själv och sista adminen |
+| `lib/rapportmall.test.js` | mejlmallen: rättelser, escaping, singularformer, listdrift |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
 | `pages/losenord.test.jsx` | återställningssidorna: utgången länk, olika lösenord, inloggning efter byte |
 | `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
@@ -453,6 +504,7 @@ så ingen manuell ifyllnad krävs vid pass-slut.
 
 ## Att bygga vidare på (TODO)
 
-- **PDF + e-post:** `lockAndSend()` i `api.js` markerar passet som skickat. Koppla en
-  [Supabase Edge Function](https://supabase.com/docs/guides/functions) som genererar
-  PDF (t.ex. med en HTML-mall) och skickar via Resend/Postmark/SES.
+- **PDF-bilaga:** rapporten mejlas som HTML, vilket är det kunden läser i telefonen.
+  Behöver hotellen en arkiverbar fil får `skicka-rapport` rita en PDF också — Edge
+  Functions kan inte köra en webbläsare, så den byggs programmatiskt och får en
+  enklare layout än mejlet.

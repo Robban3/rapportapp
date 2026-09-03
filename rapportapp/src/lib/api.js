@@ -710,19 +710,40 @@ export async function report(passId) {
  * kedjan byggs i Fas 1.2 som en Edge Function. Returvärdet säger därför
  * `utskickat: false`, så UI:t inte kan påstå något annat för administratören.
  */
-export async function lockAndSend(passId, mottagare = []) {
+export async function lockAndSend(passId, { omskick = false } = {}) {
   if (!hasSupabase) {
+    // Demoläget har ingen e-post att skicka med. Passet låses ändå, så
+    // flödet går att gå igenom, men returvärdet påstår inget annat.
     const p = db.pass.find((x) => x.id === passId)
     if (!p) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
+    if (p.status === 'skickat' && !omskick) {
+      throw new ApiError('Rapporten är redan skickad.', { kod: 'redan_skickad' })
+    }
+    const objekt = db.objekt.find((o) => o.id === p.objekt_id)
     p.status = 'skickat'
     p.skickad_at = new Date().toISOString()
-    return { ok: true, mottagare, utskickat: false }
+    return { ok: true, mottagare: objekt?.rapportmottagare || [], utskickat: false, demolage: true }
   }
-  kastaVidFel(
-    await supabase.from('pass').update({ status: 'skickat', skickad_at: new Date().toISOString() }).eq('id', passId),
-    'låsa passet'
-  )
-  return { ok: true, mottagare, utskickat: false }
+
+  // Låsning och utskick är EN operation, och den sker på servern. Gjordes de
+  // var för sig från klienten kunde passet låsas utan att mejlet gick iväg —
+  // eller tvärtom — utan att någon märkte vilket.
+  const { data, error } = await supabase.functions.invoke('skicka-rapport', {
+    body: { passId, omskick }
+  })
+
+  if (error) {
+    // Funktionens egna felmeddelanden är skrivna för administratören och är
+    // mer användbara än "Edge Function returned a non-2xx status code".
+    let text = 'Kunde inte skicka rapporten.'
+    try {
+      const kropp = await error.context?.json()
+      if (kropp?.fel) text = kropp.fel
+    } catch { /* inget svar att läsa: behåll den allmänna texten */ }
+    throw new ApiError(text, { orsak: error, kod: 'utskick' })
+  }
+
+  return { ok: true, mottagare: data?.mottagare || [], utskickat: Boolean(data?.skickat) }
 }
 
 /**

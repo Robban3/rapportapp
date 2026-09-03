@@ -11,6 +11,8 @@ export default function ReportDetail() {
   const [laddfel, setLaddfel] = useState(null)
   const [mottagare, setMottagare] = useState([])
   const [sent, setSent] = useState(false)
+  const [kvitto, setKvitto] = useState(null)   // { mottagare, utskickat } efter lyckat utskick
+  const [omskickar, setOmskickar] = useState(false)
   const [busy, setBusy] = useState(false)
   const [sandfel, setSandfel] = useState('')
   const [bekraftar, setBekraftar] = useState(false)
@@ -34,15 +36,22 @@ export default function ReportDetail() {
     return () => window.removeEventListener('keydown', onKey)
   }, [bekraftar, busy])
 
-  async function send() {
+  async function send(omskick = false) {
     setBusy(true)
     setSandfel('')
     try {
-      await lockAndSend(passId, mottagare)
+      const svar = await lockAndSend(passId, { omskick })
       setSent(true)
+      setKvitto(svar)
       setBekraftar(false)
+      setOmskickar(false)
     } catch (fel) {
+      // Passet kan vara låst även när mejlet inte gick iväg — det står i
+      // felmeddelandet från servern. Rapporten hämtas om så statusen stämmer.
       setSandfel(felText(fel))
+      setBekraftar(false)
+      setOmskickar(false)
+      ladda()
     } finally {
       setBusy(false)
     }
@@ -135,19 +144,28 @@ export default function ReportDetail() {
           </div>
 
           {isSent ? (
-            // Ingen PDF genereras och inget mejl skickas ännu (Fas 1.2), så
-            // rapporten får inte påstå att den gjort det.
             <div className="empty">
-              <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 6 }}>Rapporten är låst.</div>
-              <div>
-                Utskicket till {mottagare.length ? mottagare.join(', ') : 'kunden'} sker manuellt
-                tills automatiken är på plats.
+              <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 6 }}>
+                {kvitto?.utskickat ? 'Rapporten är skickad.' : 'Rapporten är låst.'}
               </div>
+              <div>
+                {kvitto?.utskickat
+                  ? `Mejlad till ${(kvitto.mottagare || mottagare).join(', ')}.`
+                  : kvitto?.demolage
+                    ? 'Demoläget skickar ingen e-post. I skarp drift mejlas rapporten till mottagarna.'
+                    : `Skickas till ${mottagare.join(', ')}.`}
+              </div>
+              {/* Ett omskick är ett aktivt val: dubbelklick ska inte kunna ge
+                  kunden samma rapport två gånger. */}
+              <button className="btn block" style={{ marginTop: 12 }}
+                onClick={() => setOmskickar(true)} disabled={busy || mottagare.length === 0}>
+                Skicka om
+              </button>
             </div>
           ) : (
             <>
               <button className="btn primary block" onClick={() => setBekraftar(true)}
-                disabled={busy || mottagare.length === 0}>Lås rapporten</button>
+                disabled={busy || mottagare.length === 0}>Lås och skicka rapporten</button>
               <button className="btn block" style={{ marginTop: 8 }} onClick={() => window.print()}>Förhandsgranska / skriv ut</button>
             </>
           )}
@@ -156,11 +174,32 @@ export default function ReportDetail() {
         </div>
       </div>
 
+      {omskickar && (
+        <div className="modal-back">
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="omskick-rubrik">
+            <h3 id="omskick-rubrik">Skicka om rapporten?</h3>
+            <div className="sub">
+              Samma rapport mejlas igen till {mottagare.join(', ')}. Använd det om utskicket
+              fastnade — annars får kunden den två gånger.
+            </div>
+            <div className="row-end">
+              <button className="btn" onClick={() => setOmskickar(false)} disabled={busy}>Avbryt</button>
+              <button className="btn primary" onClick={() => send(true)} disabled={busy}>
+                {busy ? 'Skickar…' : 'Skicka om'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bekraftar && (
         <div className="modal-back">
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="las-rubrik">
-            <h3 id="las-rubrik">Lås rapporten</h3>
-            <div className="sub">Efter låsning går rapporten inte att ändra. Rättelser måste läggas till som nya rader.</div>
+            <h3 id="las-rubrik">Lås och skicka rapporten</h3>
+            <div className="sub">
+              Passet låses och rapporten mejlas till mottagarna. Efter det går den inte att
+              ändra — en rättelse blir en ny rad i nästa utskick.
+            </div>
             <div className="rep" style={{ marginTop: 12 }}>
               <div className="rrow"><div className="rt">Objekt</div><div>{objekt?.namn}</div></div>
               <div className="rrow"><div className="rt">Pass</div><div>{pass.datum} · {pass.starttid}–{pass.sluttid || '—'}</div></div>
@@ -169,8 +208,8 @@ export default function ReportDetail() {
             </div>
             <div className="row-end">
               <button className="btn" onClick={() => setBekraftar(false)} disabled={busy}>Avbryt</button>
-              <button className="btn primary" onClick={send} disabled={busy}>
-                {busy ? 'Låser…' : 'Lås rapporten'}
+              <button className="btn primary" onClick={() => send(false)} disabled={busy}>
+                {busy ? 'Skickar…' : 'Lås och skicka'}
               </button>
             </div>
           </div>

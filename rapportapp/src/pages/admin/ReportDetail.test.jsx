@@ -37,7 +37,7 @@ function visa() {
 
 beforeEach(() => {
   api.report.mockResolvedValue(svar())
-  api.lockAndSend.mockResolvedValue({ utskickat: false })
+  api.lockAndSend.mockResolvedValue({ ok: true, mottagare: ['drift@draken.se'], utskickat: true })
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -82,31 +82,75 @@ describe('låsa rapporten', () => {
     api.report.mockResolvedValue(svar({ objekt: { ...OBJEKT, rapportmottagare: [] } }))
     visa()
 
-    expect(await screen.findByRole('button', { name: /Lås rapporten/ })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: /Lås och skicka/ })).toBeDisabled()
     expect(screen.getByRole('alert')).toHaveTextContent(/saknar mottagare/i)
   })
 
-  it('frågar en gång till innan låsningen, eftersom den inte går att ångra', async () => {
+  it('frågar en gång till innan utskicket, eftersom det inte går att ångra', async () => {
     const anv = userEvent.setup()
     visa()
     await screen.findByText('Nekar två minderåriga vid entrén.')
 
-    await anv.click(screen.getByRole('button', { name: 'Lås rapporten' }))
+    await anv.click(screen.getByRole('button', { name: /Lås och skicka rapporten/ }))
 
     const ruta = await screen.findByRole('dialog')
-    expect(within(ruta).getByText(/går rapporten inte att ändra/i)).toBeInTheDocument()
+    expect(within(ruta).getByText(/går den inte att ändra/i)).toBeInTheDocument()
     expect(api.lockAndSend).not.toHaveBeenCalled()
 
-    await anv.click(within(ruta).getByRole('button', { name: 'Lås rapporten' }))
-    await waitFor(() => expect(api.lockAndSend).toHaveBeenCalledWith('pass1', ['drift@draken.se']))
+    await anv.click(within(ruta).getByRole('button', { name: /Lås och skicka/ }))
+    await waitFor(() => expect(api.lockAndSend).toHaveBeenCalledWith('pass1', { omskick: false }))
   })
 
-  it('påstår inte att något mejlats — utskicket sker manuellt tills automatiken finns', async () => {
+  it('säger vem rapporten mejlats till när utskicket gått igenom', async () => {
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText('Nekar två minderåriga vid entrén.')
+
+    await anv.click(screen.getByRole('button', { name: /Lås och skicka rapporten/ }))
+    await anv.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Lås och skicka/ }))
+
+    expect(await screen.findByText(/Rapporten är skickad/i)).toBeInTheDocument()
+    expect(screen.getByText(/Mejlad till drift@draken.se/)).toBeInTheDocument()
+  })
+
+  it('påstår inte att något mejlats när utskicket inte bekräftats', async () => {
+    // Ett låst pass som laddas om: appen vet inte om mejlet gick iväg, och
+    // ska då inte påstå att det gjorde det.
     api.report.mockResolvedValue(svar({ pass: { ...PASS, status: 'skickat' } }))
     visa()
 
     expect(await screen.findByText(/Rapporten är låst/i)).toBeInTheDocument()
-    expect(screen.getByText(/sker manuellt/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Lås rapporten/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Mejlad till/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Lås och skicka rapporten/ })).not.toBeInTheDocument()
+  })
+
+  it('kräver ett aktivt val för att skicka om — dubbelklick ska inte ge kunden två mejl', async () => {
+    api.report.mockResolvedValue(svar({ pass: { ...PASS, status: 'skickat' } }))
+    const anv = userEvent.setup()
+    visa()
+
+    await anv.click(await screen.findByRole('button', { name: 'Skicka om' }))
+    const ruta = await screen.findByRole('dialog')
+    expect(within(ruta).getByText(/får kunden den två gånger/i)).toBeInTheDocument()
+    expect(api.lockAndSend).not.toHaveBeenCalled()
+
+    await anv.click(within(ruta).getByRole('button', { name: 'Skicka om' }))
+    await waitFor(() => expect(api.lockAndSend).toHaveBeenCalledWith('pass1', { omskick: true }))
+  })
+
+  it('visar serverns besked när passet låstes men mejlet fastnade', async () => {
+    const { ApiError } = await vi.importActual('../../lib/errors.js')
+    api.lockAndSend.mockRejectedValue(new ApiError(
+      'Passet är låst, men mejlet gick inte iväg. Välj Skicka om när felet är åtgärdat.',
+      { kod: 'utskick' }
+    ))
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText('Nekar två minderåriga vid entrén.')
+
+    await anv.click(screen.getByRole('button', { name: /Lås och skicka rapporten/ }))
+    await anv.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Lås och skicka/ }))
+
+    expect(await screen.findByText(/mejlet gick inte iväg/i)).toBeInTheDocument()
   })
 })
