@@ -1,0 +1,48 @@
+# Kör lint, tester och bygge på varje push och pull request.
+#
+# Varför det spelar roll här: en push till main går rakt in i
+# produktionsdatabasen via Supabase GitHub-integrationen, som kör
+# migrationerna automatiskt. Utan den här grinden märks ett trasigt bygge
+# först när en värd står med telefonen mitt i ett pass.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# En ny push till samma gren avbryter den förra körningen. Ingen mening med
+# att bygga en commit som redan hunnit bli omkörd.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kontroll:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Appen ligger i en undermapp; supabase/ ligger i roten.
+        working-directory: rapportapp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Samma intervall som package.json kräver (vite 8 / vitest 4).
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: rapportapp/package-lock.json
+
+      # npm ci, inte npm install: låsfilen ska gälla exakt, annars testar vi
+      # inte samma beroenden som körs i drift.
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Bygget körs utan Supabase-creds. Det är meningen: appen ska falla
+      # tillbaka på demoläget i stället för att krascha när variablerna saknas.
+      - run: npm run build
