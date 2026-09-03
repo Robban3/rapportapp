@@ -1,0 +1,7 @@
+# Appen är en single-page app med riktiga adresser (/objekt/o1, /admin/schema,
+# /nytt-losenord). Utan den här raden svarar Cloudflare Pages 404 på allt utom
+# roten: filen finns ju inte på disk. 200 betyder rewrite, inte redirect —
+# adressen i webbläsaren står kvar och React Router tar hand om resten.
+#
+# Statiska filer som faktiskt finns matchas före den här regeln.
+/*  /index.html  200

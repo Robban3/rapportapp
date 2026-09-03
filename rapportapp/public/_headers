@@ -1,0 +1,21 @@
+# Service workern och index.html får aldrig cachas hårt. Gör de det kan en
+# telefon sitta kvar på en gammal version av appen i timmar efter en release —
+# värsta fallet mitt i ett pass, med en bugg vi redan rättat.
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+# Byggda filer har innehållshash i namnet och kan cachas för alltid.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Appen ska aldrig ligga i en iframe på någon annans sida, och webbläsaren ska
+# inte gissa filtyper. Ingen CSP här: appen pratar med Supabase över adresser
+# som sätts vid bygget, och en felskriven CSP tystar appen utan felmeddelande.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

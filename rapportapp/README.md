@@ -116,6 +116,46 @@ injicerar den i funktionsmiljön. Försöker man ändå sätta den svarar CLI:n
 `supabase/functions/` deployas **inte** av GitHub-integrationen — den kör bara
 migrations. Kör `supabase functions deploy bjud-in` när funktionen ändras.
 
+## Publicera (Cloudflare Pages)
+
+Repot är förberett — allt som återstår görs i Cloudflares panel.
+
+**Koppla repot:** Workers & Pages → Create → Pages → Connect to Git → `Robban3/rapportapp`.
+
+| Inställning | Värde |
+| --- | --- |
+| Framework preset | None |
+| Root directory | `rapportapp` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Production branch | `main` |
+
+**Miljövariabler** (Settings → Environment variables) — sätt dem för **både** Production
+och Preview, annars bygger previewen appen i demoläge mot seed-data:
+
+```
+VITE_SUPABASE_URL       = https://<ditt-projekt>.supabase.co
+VITE_SUPABASE_ANON_KEY  = <anon-nyckeln>
+```
+
+Anon-nyckeln är publik och hamnar i JS-bundlen. Det är meningen — det är RLS som
+skyddar datan, inte nyckeln. Service role-nyckeln får däremot **aldrig** hit; den bor
+bara i Edge Functions.
+
+**Efter första bygget, i Supabase:** Authentication → URL Configuration. Lägg in
+Pages-adressen som *Site URL* och i *Redirect URLs*. Utan det pekar länkarna i
+inbjudnings- och återställningsmejlen fel, och båda flödena bryts.
+
+**Det som redan ligger i repot:**
+
+- `public/_redirects` — `/* /index.html 200`. Appen har riktiga adresser
+  (`/objekt/o1`, `/nytt-losenord`), och utan den raden svarar Pages 404 på allt utom
+  roten. Verifierat: en statisk server utan fallback ger 404 på just de adresserna.
+- `public/_headers` — `index.html` och `sw.js` cachas inte hårt, annars kan en telefon
+  sitta kvar på en gammal version i timmar efter en release. Byggda filer i `assets/`
+  har innehållshash och cachas för alltid.
+- `.node-version` — `22`. Pages väljer annars en äldre Node än vad Vite 8 kräver.
+
 ## Struktur
 
 ```
