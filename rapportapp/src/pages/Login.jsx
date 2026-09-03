@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { signIn } from '../lib/api.js'
 import { hasSupabase } from '../lib/supabase.js'
 import { useSession } from '../state/sessionCtx.js'
@@ -62,6 +62,15 @@ export default function Login() {
           {busy ? 'Loggar in…' : 'Logga in'}
         </button>
       </form>
+
+      {/* Utan den här länken är en glömd lösenord en total utelåsning: en
+          inbjudan går inte att skicka om till någon som redan har konto, så
+          enda vägen tillbaka var att en admin gick in i Supabase-panelen. */}
+      {hasSupabase && (
+        <div className="login-hjalp">
+          <Link to="/aterstall">Glömt lösenordet?</Link>
+        </div>
+      )}
 
       {!hasSupabase && (
         <div className="login-hint">

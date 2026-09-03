@@ -75,6 +75,24 @@ Tidigare loggade appen in genom att slå upp en PIN i `personal`-tabellen. Efter
 anon-nyckeln ligger i JS-bundlen innebar det att vem som helst kunde läsa ut allas
 koder. `kod`-kolumnen finns inte längre.
 
+### Glömt lösenord
+
+*Glömt lösenordet?* på inloggningssidan skickar en återställningslänk. Länken loggar
+in personen med en tillfällig session, och sidan `/nytt-losenord` byter lösenordet
+och släpper in hen direkt.
+
+Utan det här var en glömd inloggning en **total utelåsning**: `bjud-in` vägrar
+(409) för någon som redan har konto, så inte ens en administratör kunde hjälpa —
+enda vägen tillbaka var Supabase-dashboarden.
+
+Sidan säger aldrig om adressen finns. Ett "okänd adress" hade gjort
+inloggningssidan till ett sätt att kartlägga vilka som jobbar här, och det är precis
+vad resten av appen håller stängt.
+
+Länken skickas av Supabase, så den kräver samma SMTP-inställning som inbjudningarna
+(*Authentication → Emails*). Med det inbyggda utskicket fungerar den, men med hård
+kvot per timme.
+
 ### Inbjudan sker i appen, inte i Supabase-dashboarden
 
 `supabase/functions/bjud-in` låter en admin bjuda in personal direkt från panelen.
@@ -116,6 +134,8 @@ src/
     sessionCtx.js  # kontexten + useSession
   pages/
     Login.jsx      # inloggning via Supabase Auth (e-post + lösenord)
+    Aterstall.jsx  # begär återställningslänk
+    NyttLosenord.jsx # sätt nytt lösenord efter länken
     Objects.jsx    # objektlista — kopplade objekt, med bemanningsstatus
     ShiftLog.jsx   # passlogg, fria inlägg, delad i realtid
     admin/
@@ -143,6 +163,11 @@ Kör dem från `rapportapp/`. Tidszonen är låst till `Europe/Stockholm` i
 `vite.config.js` — testerna för verksamhetsdygn och nattpass är meningslösa om de
 körs i UTC.
 
+`.github/workflows/ci.yml` kör lint, tester och bygge på varje push och pull
+request. Det är inte kosmetika här: en push till `main` går rakt in i
+produktionsdatabasen via Supabase GitHub-integrationen, som kör migrationerna
+automatiskt.
+
 Vad som täcks:
 
 | Fil | Vad det handlar om |
@@ -156,7 +181,9 @@ Vad som täcks:
 | `lib/utkorg.test.js` | offlinekön: ordning, omskick, nekade inlägg |
 | `lib/schema.test.js` | veckoschemat och generatorn: tider, dubbletter, pausade dagar |
 | `lib/realtid.test.js` | vad prenumerationen beställer, och när den räknas som uppe |
+| `lib/losenord.test.js` | återställning: normalisering, strypning, ingen läcka om vem som finns |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
+| `pages/losenord.test.jsx` | återställningssidorna: utgången länk, olika lösenord, inloggning efter byte |
 | `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
 
 Databasens regler testas inte härifrån. RLS-policyerna är verifierade separat mot

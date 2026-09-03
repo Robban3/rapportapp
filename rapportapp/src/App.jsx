@@ -2,6 +2,8 @@ import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
 import { useSession } from './state/sessionCtx.js'
 import { hasSupabase } from './lib/supabase.js'
 import Login from './pages/Login.jsx'
+import Aterstall from './pages/Aterstall.jsx'
+import NyttLosenord from './pages/NyttLosenord.jsx'
 import Objects from './pages/Objects.jsx'
 import ShiftLog from './pages/ShiftLog.jsx'
 import Admin from './pages/admin/Admin.jsx'
@@ -60,6 +62,10 @@ function VardLayout() {
       <main className="app">
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Utanför RequireAuth: den som glömt sitt lösenord är per
+              definition inte inloggad. */}
+          <Route path="/aterstall" element={<Aterstall />} />
+          <Route path="/nytt-losenord" element={<NyttLosenord />} />
           <Route path="/" element={<RequireAuth><Objects /></RequireAuth>} />
           <Route path="/objekt/:objektId" element={<RequireAuth><ShiftLog /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />

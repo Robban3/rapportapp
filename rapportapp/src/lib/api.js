@@ -17,6 +17,7 @@ import { ApiError, kastaVidFel, kravRad } from './errors.js'
 
 const clone = (x) => JSON.parse(JSON.stringify(x))
 const personalMed = (pid) => db.personal.find((p) => p.id === pid)
+const EPOST_MONSTER = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ------------------------------------------------------------------ auth
 // Inloggningen sköts av Supabase Auth. Tidigare slogs en PIN upp direkt i
@@ -70,6 +71,79 @@ export async function signIn(epost, losenord) {
 
 export async function signOut() {
   if (hasSupabase) await supabase.auth.signOut()
+}
+
+/**
+ * Skickar en återställningslänk.
+ *
+ * Svaret säger ALDRIG om adressen finns eller inte. Ett "den adressen är
+ * okänd" gör inloggningssidan till ett sätt att lista ut vilka som jobbar
+ * här — och det är precis vad appen i övrigt håller stängt.
+ */
+export async function begarAterstallning(epost) {
+  const adress = String(epost || '').trim().toLowerCase()
+  if (!EPOST_MONSTER.test(adress)) {
+    throw new ApiError('E-postadressen ser inte giltig ut.', { kod: 'ogiltig_epost' })
+  }
+
+  if (!hasSupabase) {
+    throw new ApiError('Lösenord hanteras av Supabase Auth. Demoläget har ingen inloggning.', { kod: 'demolage' })
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(adress, {
+    redirectTo: `${window.location.origin}/nytt-losenord`
+  })
+
+  // Supabase strypar antalet utskick per adress och timme. Det felet är det
+  // enda som är värt att visa — resten skulle avslöja om adressen finns.
+  if (error) {
+    throw new ApiError(
+      /rate|limit|too many/i.test(error.message)
+        ? 'För många försök. Vänta en stund och försök igen.'
+        : 'Kunde inte skicka återställningen. Försök igen.',
+      { orsak: error, kod: 'aterstallning' }
+    )
+  }
+  return { ok: true }
+}
+
+/**
+ * Sätter ett nytt lösenord för den som just klickat på återställningslänken.
+ *
+ * Länken loggar in personen med en tillfällig session, så anropet nedan
+ * gäller alltid rätt konto — det går inte att ändra någon annans lösenord.
+ */
+export async function settNyttLosenord(losenord) {
+  const nytt = String(losenord || '')
+  if (nytt.length < 8) {
+    throw new ApiError('Lösenordet måste vara minst 8 tecken.', { kod: 'for_kort' })
+  }
+
+  if (!hasSupabase) {
+    throw new ApiError('Lösenord hanteras av Supabase Auth. Demoläget har ingen inloggning.', { kod: 'demolage' })
+  }
+
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new ApiError(
+      'Länken har gått ut eller är redan använd. Begär en ny återställning.',
+      { kod: 'ingen_session' }
+    )
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: nytt })
+  if (error) {
+    throw new ApiError(
+      /should be different|same/i.test(error.message)
+        ? 'Det nya lösenordet måste skilja sig från det gamla.'
+        : 'Kunde inte spara lösenordet. Försök igen.',
+      { orsak: error, kod: 'byte_misslyckades' }
+    )
+  }
+
+  // Personalraden hämtas här så anroparen kan sätta sessionen direkt och
+  // slippa en extra inloggning efter bytet.
+  return aktuellPersonal()
 }
 
 /** Kallas när Supabase byter sessionstillstånd (inloggning, utloggning, token-förnyelse). */
@@ -729,7 +803,6 @@ export async function listObjects({ inklInaktiva = false } = {}) {
 }
 
 // ----------------------------------------------------------- admin: objekt
-const EPOST_MONSTER = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
  * Städar ett objektformulär till databasens form.
