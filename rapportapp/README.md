@@ -1,8 +1,8 @@
-# Rapportapp
+# Raptr
 
 Passrapportering för hotellvärdar. Värdar skriver fria, tidsstämplade inlägg i ett
 delat pass; inläggen sorteras automatiskt i tidsordning oavsett vem som skrev dem.
-En administratör granskar den sammanställda rapporten och skickar den som PDF till kund.
+En administratör granskar den sammanställda rapporten och mejlar den till kunden.
 
 Byggd som **React-PWA** (installerbar, offline-vänlig) med **Supabase** som backend.
 Kör direkt mot inbyggd seed-data tills du kopplar ett eget Supabase-projekt.
@@ -169,7 +169,7 @@ passet, renderar rapporten och mejlar den till objektets `rapportmottagare`.
 
 ```bash
 supabase secrets set RESEND_API_KEY=re_...
-supabase secrets set RAPPORT_AVSANDARE="Rapport <rapport@dindoman.se>"
+supabase secrets set RAPPORT_AVSANDARE="Raptr <resend@raptr.se>"
 supabase functions deploy skicka-rapport
 ```
 
@@ -201,10 +201,10 @@ byggt för test, inte för en personalstyrka som loggar in.
 
 ### Innan något når en riktig kund
 
-Resend tillåter bara `onboarding@resend.dev` som avsändare tills du **verifierat en
-domän**, och med den adressen går mejl bara till ditt eget konto. Utskick till en
-hotelladress kommer alltså att nekas. Verifiera domänen i Resend (DNS-poster för SPF
-och DKIM) innan du testar skarpt.
+Resend tillåter bara `onboarding@resend.dev` som avsändare tills domänen är
+**verifierad**, och med den adressen går mejl bara till ditt eget konto — utskick till
+en hotelladress nekas. Lägg in `raptr.se` i Resend och sätt DNS-posterna för SPF och
+DKIM innan du testar skarpt.
 
 ## Struktur
 

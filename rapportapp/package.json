@@ -1,9 +1,9 @@
 {
-  "name": "rapportapp",
+  "name": "raptr",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Rapportapp — passrapportering för hotellvärdar. React-PWA + Supabase.",
+  "description": "Raptr — passrapportering för hotellvärdar. React-PWA + Supabase.",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },

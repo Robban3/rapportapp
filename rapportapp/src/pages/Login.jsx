@@ -35,7 +35,7 @@ export default function Login() {
 
   return (
     <div className="login">
-      <h1>Rapportapp</h1>
+      <h1>Raptr</h1>
       <div className="sub">Logga in för att öppna passet</div>
 
       <form className="login-form" onSubmit={submit}>

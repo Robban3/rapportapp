@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Rapportapp',
-        short_name: 'Rapport',
+        name: 'Raptr',
+        short_name: 'Raptr',
         description: 'Passrapportering för hotellvärdar',
         theme_color: '#0d9488',
         background_color: '#f2f5f4',

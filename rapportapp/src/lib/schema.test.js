@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   listSchema, setSchemaRad, removeSchemaRad, setSchemaPersonal, removeSchemaPersonal,
   skapaPassFranSchema, passForObjektDatum, rosterForPass, VECKODAGAR
@@ -91,6 +91,16 @@ describe('schemarader', () => {
 })
 
 describe('skapa pass ur schemat', () => {
+  // Klockan låses. Utan det beror testerna på vilken veckodag de körs: faller
+  // körningen på en fredag är demopasset redan upplagt på just den dagen,
+  // generatorn hoppar (helt korrekt) över den, och testet mäter något annat
+  // än det tror. Måndagen nedan krockar varken med demopasset eller pass1.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-17T10:00:00'))
+  })
+  afterEach(() => vi.useRealTimers())
+
   it('skapar passet med schemats tider och bemanning', async () => {
     const fredag = nastaDag(5)
     await skapaPassFranSchema(14)

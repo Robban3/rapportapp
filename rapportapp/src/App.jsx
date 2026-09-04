@@ -31,7 +31,7 @@ function TopBar() {
           loggan och utloggningen i varsin ände av en bred skärm, med ett
           tomt fält emellan. */}
       <div className="topbar-inner">
-        <Link to="/" className="brand"><span className="brand-mark">R</span> Rapport</Link>
+        <Link to="/" className="brand"><span className="brand-mark">R</span> Raptr</Link>
         <div className="topbar-right">
           {isAdmin && <Link to="/admin" className="link">Admin</Link>}
           <TemaKnapp />

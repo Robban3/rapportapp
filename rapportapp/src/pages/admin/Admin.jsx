@@ -25,7 +25,7 @@ export default function Admin() {
         <Link to="/" className="side-brand">
           <span className="brand-mark">R</span>
           <span>
-            Rapport
+            Raptr
             <small>Adminpanel</small>
           </span>
         </Link>
