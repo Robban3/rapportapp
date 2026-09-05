@@ -113,14 +113,27 @@ describe('låsa rapporten', () => {
     expect(screen.getByText(/Mejlad till drift@draken.se/)).toBeInTheDocument()
   })
 
-  it('påstår inte att något mejlats när utskicket inte bekräftats', async () => {
-    // Ett låst pass som laddas om: appen vet inte om mejlet gick iväg, och
-    // ska då inte påstå att det gjorde det.
+  it('skiljer ett låst pass vars mejl fastnat från ett levererat', async () => {
+    // status `last` betyder stängd logg men obekräftad leverans. Det ska synas
+    // även efter en omladdning — orsaken kommer från databasen, inte från ett
+    // React-state som försvinner när fliken stängs.
+    api.report.mockResolvedValue(svar({
+      pass: { ...PASS, status: 'last', utskick_fel: 'Resend svarade 403: domain not verified' }
+    }))
+    visa()
+
+    expect(await screen.findByText(/Låst, men inte skickad/i)).toBeInTheDocument()
+    expect(screen.getByText(/Kunden har inte fått rapporten/i)).toBeInTheDocument()
+    expect(screen.getByText(/domain not verified/)).toBeInTheDocument()
+    expect(screen.queryByText(/Mejlad till/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Försök skicka igen' })).toBeInTheDocument()
+  })
+
+  it('visar ett levererat pass som skickat', async () => {
     api.report.mockResolvedValue(svar({ pass: { ...PASS, status: 'skickat' } }))
     visa()
 
-    expect(await screen.findByText(/Rapporten är låst/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Mejlad till/)).not.toBeInTheDocument()
+    expect(await screen.findByText(/Rapporten är skickad/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Lås och skicka rapporten/ })).not.toBeInTheDocument()
   })
 
@@ -129,7 +142,7 @@ describe('låsa rapporten', () => {
     const anv = userEvent.setup()
     visa()
 
-    await anv.click(await screen.findByRole('button', { name: 'Skicka om' }))
+    await anv.click(await screen.findByRole('button', { name: /Skicka om|Försök skicka igen/ }))
     const ruta = await screen.findByRole('dialog')
     expect(within(ruta).getByText(/får kunden den två gånger/i)).toBeInTheDocument()
     expect(api.lockAndSend).not.toHaveBeenCalled()

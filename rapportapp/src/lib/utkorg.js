@@ -58,6 +58,18 @@ export function antalIKo(personalId) {
 }
 
 /**
+ * Köade inlägg som nekats och alltså aldrig kommer fram av sig själva.
+ *
+ * Kön töms för hela personen, oavsett pass, men passloggen visar bara det pass
+ * man står i. Ett inlägg från gårdagens numera låsta pass felmarkerades därför
+ * och försvann ur allas synfält — texten fanns kvar i localStorage, men ingen
+ * fick veta att den aldrig nådde rapporten.
+ */
+export function felmarkerade(personalId) {
+  return las().filter((k) => k.personalId === personalId && k.fel)
+}
+
+/**
  * Lägger ett inlägg i kön. Id:t sätts här och följer med hela vägen in i
  * databasen — skickas samma inlägg två gånger (svaret tappades bort på vägen)
  * krockar det andra försöket med primärnyckeln i stället för att bli en
@@ -65,7 +77,11 @@ export function antalIKo(personalId) {
  */
 export function laggIKo(post) {
   const rad = {
-    id: nyttId(),
+    // Ett medskickat id behålls. Köas ett inlägg om efter att skrivningen
+    // redan gått igenom — nätet tappades mellan skrivning och omhämtning —
+    // krockar omskicket med primärnyckeln i stället för att bli en dubblett
+    // i kundens rapport.
+    id: post.id || nyttId(),
     passId: post.passId,
     personalId: post.personalId,
     tid: post.tid,

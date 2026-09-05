@@ -63,7 +63,9 @@ export default function Admin() {
             {/* key: utan den återanvänder React samma ReviewList-instans mellan
                 rutterna, så den gamla listan visas under den nya rubriken. */}
             <Route index element={<ReviewList key="granska" status={['oppet', 'granskas']} title="Att granska" />} />
-            <Route path="skickade" element={<ReviewList key="skickade" status={['skickat']} title="Skickade rapporter" />} />
+            {/* `last` = låst men inte bekräftat levererad. Utan den här i listan
+                hade ett misslyckat utskick försvunnit ur båda vyerna. */}
+            <Route path="skickade" element={<ReviewList key="skickade" status={['skickat', 'last']} title="Skickade rapporter" />} />
             <Route path="pass/:passId" element={<ReportDetail />} />
             <Route path="objekt" element={<Objekt />} />
             <Route path="schema" element={<Veckoschema />} />

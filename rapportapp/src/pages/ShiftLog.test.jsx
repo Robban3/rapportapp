@@ -222,6 +222,39 @@ describe('utan nät', () => {
     expect(screen.getByLabelText('Inlägg')).toHaveValue('')
   })
 
+  it('köar INTE om ett inlägg som redan sparats när omhämtningen faller', async () => {
+    // Buggen: omhämtningen låg i samma try som skrivningen. Tappades nätet
+    // däremellan såg det ut som en misslyckad skrivning, inlägget köades om
+    // med ett nytt id, och kunden fick det två gånger i rapporten.
+    const { ApiError } = await vi.importActual('../lib/errors.js')
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText('Nekar två minderåriga vid entrén.')
+
+    api.entriesForPass.mockRejectedValueOnce(
+      new ApiError('Kunde inte hämta passloggen.', { orsak: { message: 'Failed to fetch' } })
+    )
+    await anv.type(screen.getByLabelText('Inlägg'), 'Rooftop stänger, 22 gäster kvar.')
+    await anv.click(screen.getByLabelText('Spara inlägg'))
+
+    await waitFor(() => expect(api.addEntry).toHaveBeenCalled())
+    expect(await screen.findByText(/Inlägget sparades/)).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('rapportapp.utkorg.v1') || '[]')).toHaveLength(0)
+    expect(screen.queryByText('Väntar på nät')).not.toBeInTheDocument()
+  })
+
+  it('skickar med ett id som databasen kan känna igen vid omskick', async () => {
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText('Nekar två minderåriga vid entrén.')
+
+    await anv.type(screen.getByLabelText('Inlägg'), 'Rond utförd.')
+    await anv.click(screen.getByLabelText('Spara inlägg'))
+
+    await waitFor(() => expect(api.addEntry).toHaveBeenCalled())
+    expect(api.addEntry.mock.calls[0][0].id).toEqual(expect.any(String))
+  })
+
   it('skickar kön när nätet kommer tillbaka', async () => {
     const anv = userEvent.setup()
     visa()

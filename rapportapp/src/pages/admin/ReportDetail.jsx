@@ -10,7 +10,6 @@ export default function ReportDetail() {
   const [data, setData] = useState(null)
   const [laddfel, setLaddfel] = useState(null)
   const [mottagare, setMottagare] = useState([])
-  const [sent, setSent] = useState(false)
   const [kvitto, setKvitto] = useState(null)   // { mottagare, utskickat } efter lyckat utskick
   const [omskickar, setOmskickar] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -41,7 +40,6 @@ export default function ReportDetail() {
     setSandfel('')
     try {
       const svar = await lockAndSend(passId, { omskick })
-      setSent(true)
       setKvitto(svar)
       setBekraftar(false)
       setOmskickar(false)
@@ -61,7 +59,13 @@ export default function ReportDetail() {
   if (!data) return <div className="panel"><div className="empty">Laddar…</div></div>
 
   const { objekt, pass, roster, entries, stats } = data
-  const isSent = sent || pass.status === 'skickat'
+  // Låst och skickat är två olika saker. Ett pass kan vara stängt för nya
+  // inlägg utan att rapporten nått kunden — och då ska det synas, även efter
+  // att administratören laddat om sidan.
+  // `kvitto` finns direkt efter ett utskick i den här sessionen; passet i
+  // `data` är då fortfarande det som hämtades före låsningen.
+  const last = Boolean(kvitto) || pass.status === 'last' || pass.status === 'skickat'
+  const levererad = kvitto ? kvitto.utskickat : pass.status === 'skickat'
   // Rättelser räknas för sig. Kunden ska se att t.ex. 12 inlägg innehåller
   // 2 rättelser, inte tro att det skrivits 12 fristående anteckningar.
   const antalRattelser = entries.filter((e) => e.rattar_id).length
@@ -71,7 +75,9 @@ export default function ReportDetail() {
       <div className="panel" id="report">
         <div>
           <span className="h3">{objekt?.namn}</span>
-          <span className={'pill ' + (isSent ? 'sent' : 'review')}>{isSent ? 'Låst' : 'Granskas'}</span>
+          <span className={'pill ' + (levererad ? 'sent' : last ? 'fara' : 'review')}>
+            {levererad ? 'Skickad' : last ? 'Låst — ej skickad' : 'Granskas'}
+          </span>
         </div>
         <div className="meta">
           {pass.datum} · pass {pass.starttid}–{pass.sluttid || '—'} · {roster.length} i personalen
@@ -143,23 +149,30 @@ export default function ReportDetail() {
             )}
           </div>
 
-          {isSent ? (
+          {last ? (
             <div className="empty">
-              <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 6 }}>
-                {kvitto?.utskickat ? 'Rapporten är skickad.' : 'Rapporten är låst.'}
+              <div style={{ color: levererad ? 'var(--accent)' : 'var(--alert)', fontWeight: 700, marginBottom: 6 }}>
+                {levererad ? 'Rapporten är skickad.' : 'Låst, men inte skickad.'}
               </div>
               <div>
-                {kvitto?.utskickat
-                  ? `Mejlad till ${(kvitto.mottagare || mottagare).join(', ')}.`
+                {levererad
+                  ? `Mejlad till ${(kvitto?.mottagare || mottagare).join(', ')}.`
                   : kvitto?.demolage
                     ? 'Demoläget skickar ingen e-post. I skarp drift mejlas rapporten till mottagarna.'
-                    : `Skickas till ${mottagare.join(', ')}.`}
+                    : 'Loggen är stängd, men mejlet gick inte fram. Kunden har inte fått rapporten.'}
               </div>
+              {/* Orsaken kommer från databasen, inte från ett React-state —
+                  den överlever att fliken stängs. */}
+              {!levererad && pass.utskick_fel && (
+                <div className="err" role="alert" style={{ height: 'auto', marginTop: 10, textAlign: 'left' }}>
+                  {pass.utskick_fel}
+                </div>
+              )}
               {/* Ett omskick är ett aktivt val: dubbelklick ska inte kunna ge
                   kunden samma rapport två gånger. */}
               <button className="btn block" style={{ marginTop: 12 }}
                 onClick={() => setOmskickar(true)} disabled={busy || mottagare.length === 0}>
-                Skicka om
+                {levererad ? 'Skicka om' : 'Försök skicka igen'}
               </button>
             </div>
           ) : (

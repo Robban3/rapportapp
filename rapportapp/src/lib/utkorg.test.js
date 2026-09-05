@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  koFor, antalIKo, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel, nollstall
+  koFor, antalIKo, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel, felmarkerade, nollstall
 } from './utkorg.js'
 import { ApiError } from './errors.js'
 import { addEntry, entriesForPass } from './api.js'
@@ -146,6 +146,42 @@ describe('utkorgen', () => {
     const rad = laggIKo(POST)
     taBortFranKo(rad.id)
     expect(antalIKo('p1')).toBe(0)
+  })
+})
+
+describe('inlägg som nekats', () => {
+  it('behåller ett medskickat id, så ett omskick inte blir en dubblett', () => {
+    // Tappas nätet mellan skrivning och omhämtning köas inlägget om trots att
+    // det redan är sparat. Behålls id:t krockar omskicket med primärnyckeln i
+    // stället för att bli en andra rad i kundens rapport.
+    const rad = laggIKo({ ...POST, id: 'redan-sparat' })
+    expect(rad.id).toBe('redan-sparat')
+  })
+
+  it('syns oavsett vilket pass man står i', async () => {
+    laggIKo({ ...POST, passId: 'pass1', meddelande: 'Från gårdagens pass' })
+    await flusha('p1', async () => { throw new ApiError('Passet är låst.', { kod: 'last' }) })
+
+    // Passloggen visar bara sitt eget pass. Utan den här vyn försvann inlägget
+    // ur allas synfält så fort värden öppnade ett annat objekt.
+    expect(koFor('p1', 'pass2')).toHaveLength(0)
+    expect(felmarkerade('p1').map((k) => k.meddelande)).toEqual(['Från gårdagens pass'])
+  })
+
+  it('listar bara sådant som faktiskt nekats, inte det som väntar på nät', async () => {
+    laggIKo({ ...POST, meddelande: 'Väntar bara' })
+    online(false)
+    await flusha('p1', async () => {})
+
+    expect(felmarkerade('p1')).toHaveLength(0)
+  })
+
+  it('håller isär personer på samma telefon', async () => {
+    laggIKo({ ...POST, personalId: 'p4', meddelande: 'Någon annans' })
+    await flusha('p4', async () => { throw new ApiError('Nekad.', { kod: 'last' }) })
+
+    expect(felmarkerade('p1')).toHaveLength(0)
+    expect(felmarkerade('p4')).toHaveLength(1)
   })
 })
 

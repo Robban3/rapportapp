@@ -7,10 +7,18 @@ import { felText } from '../lib/errors.js'
 import { koFor, laggIKo, taBortFranKo, forsokIgen, flusha, arNatverksfel } from '../lib/utkorg.js'
 import { lyssnaPaPass } from '../lib/realtid.js'
 import Feltillstand from '../components/Feltillstand.jsx'
+import Utkorgsvarning from '../components/Utkorgsvarning.jsx'
 
 // Utan realtid pollas loggen var 15:e sekund. Med realtid uppe räcker en
 // gles kontroll — den finns kvar som skyddsnät ifall WebSocketen tappas
 // utan att säga till.
+/** Id sätts på telefonen så att både databasen och utkorgen kan känna igen
+ *  samma inlägg. crypto.randomUUID saknas i äldre webbläsare på jobbtelefoner. */
+function nyttInlaggsId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'i-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
 const POLL_MS = 15000
 const POLL_SAKERHET_MS = 60000
 
@@ -180,7 +188,12 @@ export default function ShiftLog() {
       return
     }
 
+    // Id:t sätts här, före skrivningen, och följer med både till databasen och
+    // till utkorgen. Utan det blev ett inlägg som köades om efter en lyckad
+    // skrivning en dubblett i kundens rapport — kön hade satt ett nytt id, så
+    // dubblettspärren mot primärnyckeln bet inte.
     const post = {
+      id: nyttInlaggsId(),
       passId: pass.id, personalId: staff.id, tid,
       meddelande: msg.trim(), incidentTyp: inc,
       passStartTid: pass.starttid,
@@ -201,10 +214,6 @@ export default function ShiftLog() {
 
     try {
       await addEntry(post)
-      // Rensa först när inlägget faktiskt är sparat.
-      rensaFalt()
-      setEntries(await entriesForPass(pass.id))
-      rullaNed()
     } catch (fel) {
       // Nätet försvann mitt i: inlägget köas i stället för att gå förlorat.
       // Ett nekat inlägg (låst pass, fel behörighet) köas däremot inte —
@@ -212,6 +221,19 @@ export default function ShiftLog() {
       if (arNatverksfel(fel)) koa(post)
       // Texten står kvar i fältet så värden slipper skriva om den.
       else setSkrivfel(felText(fel))
+      setBusy(false)
+      return
+    }
+
+    // Härifrån ÄR inlägget sparat. Omhämtningen ligger utanför try-blocket
+    // ovan: låg den kvar där kunde ett nätglapp under hämtningen se ut som en
+    // misslyckad skrivning, och inlägget köades om trots att det redan fanns.
+    rensaFalt()
+    try {
+      setEntries(await entriesForPass(pass.id))
+      rullaNed()
+    } catch {
+      setSkrivfel('Inlägget sparades, men loggen kunde inte hämtas om. Den uppdateras av sig själv.')
     } finally {
       setBusy(false)
     }
@@ -278,6 +300,11 @@ export default function ShiftLog() {
 
   return (
     <div>
+      {/* Nekade inlägg från VILKET pass som helst. Ligger överst så att ett
+          inlägg från gårdagens låsta pass inte blir osynligt bara för att
+          värden står i ett annat objekt idag. */}
+      <Utkorgsvarning personalId={staff.id} />
+
       <div className="shift-head">
         <span className="obj-ico">{objekt.namn.split(' ').slice(0, 2).map((w) => w[0]).join('')}</span>
         <div>

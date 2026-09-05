@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { objectsForStaff, objektStatusForStaff } from '../lib/api.js'
 import { useSession } from '../state/sessionCtx.js'
 import Feltillstand from '../components/Feltillstand.jsx'
+import Utkorgsvarning from '../components/Utkorgsvarning.jsx'
 
 const STATUSTEXT = {
   bemannad: 'Öppna',
@@ -34,6 +35,10 @@ export default function Objects() {
 
   return (
     <div>
+      {/* Här ser värden nekade inlägg från alla pass, även innan hen valt
+          objekt — annars kunde de bara upptäckas inne i rätt passlogg. */}
+      <Utkorgsvarning personalId={staff.id} />
+
       <div className="page-title">Välj objekt</div>
       <div className="page-sub">Du ser bara de objekt du är kopplad till. Passet öppnas när det startar, och stängs när det slutar — även när det pågår över midnatt.</div>
       {fel ? (

@@ -258,16 +258,16 @@ export async function setPassTider(passId, tider = {}) {
     'spara passets tider'
   )
 
-  const rader = kastaVidFel(
-    await supabase.from('inlagg').select('id, tid').eq('pass_id', passId),
-    'hämta inläggen för omsortering'
+  // Omsorteringen görs i databasen. Tidigare kördes en update per inlägg
+  // härifrån — men ingen roll har UPDATE på inlagg, så varje sådan skrivning
+  // nekades med 42501. Passets tid ändrades ändå, och inläggen låg kvar
+  // sorterade mot den gamla starttiden: fel ordning i rapporten till kund,
+  // utan att något såg trasigt ut. Ett pass med 80 inlägg gav dessutom 80
+  // sekventiella anrop från en telefon.
+  kastaVidFel(
+    await supabase.rpc('sortera_om_pass', { p_pass_id: passId }),
+    'sortera om inläggen'
   )
-  for (const rad of rader || []) {
-    kastaVidFel(
-      await supabase.from('inlagg').update({ sortnyckel: sortKey(rad.tid, start) }).eq('id', rad.id),
-      'sortera om inläggen'
-    )
-  }
   return uppdaterat
 }
 
@@ -600,19 +600,26 @@ export async function addEntry({ id = null, passId, personalId, tid, meddelande,
   // Spärren finns även i UI:t, men den är beroende av att pollningen hunnit
   // uppdatera passet. En låst rapport ska inte kunna växa på grund av en
   // kapplöpning — rättelser läggs till av admin.
+  // Samma regel som pass_oppet() i databasen: både `last` och `skickat` är
+  // stängda. Efter att låsning och utskick blev två steg räckte det inte att
+  // kolla `skickat` — ett pass som låsts men vars mejl fastnat hade tagit emot
+  // nya inlägg, efter att rapporten redan renderats.
   const passet = await passById(passId)
   if (!passet) throw new ApiError('Passet finns inte.', { kod: 'saknas' })
-  if (passet.status === 'skickat') {
-    throw new ApiError('Passet är låst och rapporten skickad. Be en administratör lägga till rättelsen.', { kod: 'last' })
+  if (passet.status === 'last' || passet.status === 'skickat') {
+    throw new ApiError('Passet är låst och rapporten sammanställd. Be en administratör lägga till rättelsen.', { kod: 'last' })
   }
 
   // Id:t får komma utifrån. Utkorgen sätter ett innan inlägget lämnar
   // telefonen, så att ett omskick efter ett tappat svar krockar med
   // primärnyckeln i stället för att bli en dubblett i rapporten.
+  // sortnyckel och last sätts av databasen: en trigger räknar sortnyckeln ur
+  // passets starttid, och kolumnen ligger utanför insert-granten. Skickades
+  // den härifrån kunde en värd lägga sitt inlägg först i kundens rapport
+  // oavsett klockslag. I demoläget finns ingen databas att luta sig mot.
   const row = {
     pass_id: passId, personal_id: personalId, tid: angivenTid,
-    sortnyckel: sortKey(angivenTid, passStartTid), meddelande: text,
-    incident_typ: incidentTyp, last: true, rattar_id: rattarId
+    meddelande: text, incident_typ: incidentTyp, rattar_id: rattarId
   }
   if (id) row.id = id
 
@@ -633,7 +640,11 @@ export async function addEntry({ id = null, passId, personalId, tid, meddelande,
   if (!hasSupabase) {
     const befintligt = id ? db.inlagg.find((i) => i.id === id) : null
     if (befintligt) return { ...befintligt, signatur: personalMed(befintligt.personal_id)?.initialer }
-    const saved = { ...row, id: id || db.newId(), skapad_at: new Date().toISOString() }
+    const saved = {
+      ...row, id: id || db.newId(), last: true,
+      sortnyckel: sortKey(angivenTid, passStartTid),
+      skapad_at: new Date().toISOString()
+    }
     db.inlagg.push(saved)
     return { ...saved, signatur: personalMed(personalId)?.initialer }
   }
@@ -720,8 +731,11 @@ export async function lockAndSend(passId, { omskick = false } = {}) {
       throw new ApiError('Rapporten är redan skickad.', { kod: 'redan_skickad' })
     }
     const objekt = db.objekt.find((o) => o.id === p.objekt_id)
-    p.status = 'skickat'
-    p.skickad_at = new Date().toISOString()
+    // Demoläget skickar inget mejl, så passet stannar i `last` — precis som
+    // ett skarpt utskick som inte gick fram. Att sätta `skickat` här hade
+    // låtit demon påstå något appen inte gjort.
+    p.status = 'last'
+    p.utskick_fel = 'Demoläget skickar ingen e-post.'
     return { ok: true, mottagare: objekt?.rapportmottagare || [], utskickat: false, demolage: true }
   }
 

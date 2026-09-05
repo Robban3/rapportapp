@@ -35,7 +35,7 @@ export default function ReviewList({ status, title }) {
               <tr key={p.id}>
                 <td style={{ fontWeight: 700 }}>{p.objekt_namn}</td>
                 <td>{p.datum}</td>
-                <td><span className={'pill ' + (p.status === 'skickat' ? 'sent' : 'review')}>{statusText(p.status)}</span></td>
+                <td><span className={'pill ' + pillKlass(p.status)}>{statusText(p.status)}</span></td>
                 <td style={{ textAlign: 'right' }}><Link className="linkbtn" to={`/admin/pass/${p.id}`}>Öppna →</Link></td>
               </tr>
             ))}
@@ -47,4 +47,10 @@ export default function ReviewList({ status, title }) {
   )
 }
 
-const statusText = (s) => ({ oppet: 'Öppet', granskas: 'Granskas', skickat: 'Skickat' }[s] || s)
+// `last` betyder att loggen är stängd men rapporten inte bekräftat levererad.
+// Den ska inte se ut som en skickad rapport — det var precis den förväxlingen
+// som gjorde att ett bortfall kunde passera obemärkt.
+const statusText = (s) =>
+  ({ oppet: 'Öppet', granskas: 'Granskas', last: 'Ej skickad', skickat: 'Skickat' }[s] || s)
+
+const pillKlass = (s) => (s === 'skickat' ? 'sent' : s === 'last' ? 'fara' : 'review')
