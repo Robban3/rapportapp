@@ -79,9 +79,14 @@ Deno.serve(async (req) => {
     return svar(409, { fel: 'Personen har redan ett konto.' })
   }
 
+  // Länken måste landa på sidan där lösenordet sätts. Pekade den på roten
+  // blev den inbjudna inloggad av själva klicket, hamnade i objektlistan och
+  // fick aldrig sätta något lösenord — och kunde därmed inte logga in nästa
+  // gång, utan att förstå varför.
+  const origin = req.headers.get('origin')
   const admin = createClient(url, serviceNyckel)
   const { error } = await admin.auth.admin.inviteUserByEmail(epost, {
-    redirectTo: req.headers.get('origin') ?? undefined
+    redirectTo: origin ? `${origin}/nytt-losenord` : undefined
   })
 
   if (error) {

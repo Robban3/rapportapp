@@ -85,5 +85,9 @@ npm run build
 
 ## Domän och e-post
 
+Mejlmallarna för inbjudan och lösenordsåterställning ligger i
+`supabase/emails/` och klistras in i Authentication → Emails. De bor annars
+bara i Supabases databas och följer varken med en migration eller en backup.
+
 `raptr.se`. E-post går via Resend; DKIM och SPF ligger på `send.raptr.se`.
 DMARC står på `p=reject`, så mejl studsar helt om DKIM inte är verifierat.
