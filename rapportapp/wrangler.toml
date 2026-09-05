@@ -1,0 +1,20 @@
+# Cloudflare Workers — statisk hosting av Raptr.
+#
+# Ingen `main` här: det finns ingen serverkod. Workern serverar bara det
+# Vite byggt, vilket är hela poängen — appen pratar direkt med Supabase,
+# och allt som skyddar datan ligger i RLS.
+#
+# Bygget körs med root directory = rapportapp (ställs in i Cloudflares panel),
+# så sökvägarna nedan är relativa till den här mappen.
+
+name = "raptr"
+compatibility_date = "2026-09-05"
+
+[assets]
+directory = "./dist"
+
+# Appen har riktiga adresser: /objekt/o1, /admin/schema, /nytt-losenord.
+# De filerna finns inte på disk, så utan den här raden svarar Cloudflare 404
+# på allt utom roten — och lösenordslänken i mejlet landar just på en sådan
+# adress. Motsvarar public/_redirects, som ligger kvar för Pages-flödet.
+not_found_handling = "single-page-application"
