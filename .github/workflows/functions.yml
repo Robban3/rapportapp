@@ -22,9 +22,12 @@ on:
   # bytts utan att koden ändrats.
   workflow_dispatch:
 
+# En deploy ska aldrig avbrytas mitt i. Två körningar köas i stället för att
+# den ena dödar den andra — det var precis vad som hände första gången:
+# funktionerna hann deployas, men körningen markerades som avbruten.
 concurrency:
   group: functions-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -32,9 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinnad version, inte "latest". `latest` slår upp senaste releasen via
+      # GitHubs API utan autentisering, och två körningar tätt inpå varandra
+      # räckte för att få "rate limit exceeded" — ett fel som inte har med
+      # koden att göra och som återkommer slumpmässigt.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.114.0
 
       # Utan namn deployas alla funktioner under supabase/functions.
       - name: Deploya funktionerna
