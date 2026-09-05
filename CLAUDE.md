@@ -71,6 +71,14 @@ npm run build
 - **Datumberoende tester ska låsa klockan** med `vi.setSystemTime`. Demopasset
   dateras dagens datum, så ett test som utgår från "nästa fredag" mäter något
   annat när det körs på en fredag.
+- **Sortnyckeln räknas i databasen**, av en trigger, ur passets starttid. Regeln
+  finns i två exemplar: `berakna_sortnyckel` i SQL och `sortKey` i `time.js`.
+  Ändras den ena måste den andra följa med — de är jämförda mot varandra i 110 fall.
+- **`last` och `skickat` är olika tillstånd.** `last` = loggen stängd, leveransen
+  inte bekräftad. Ett pass blir `skickat` först när Resend svarat 2xx.
+- **Kolumnrättigheter, inte bara RLS.** `personal` och `inlagg` har kolumnlistor i
+  sina grants. Admin-vägar som behöver mer går genom SECURITY DEFINER-funktioner
+  (`personal_for_admin`, `personal_for_invite`, `sortera_om_pass`).
 - **Inlägg raderas eller redigeras aldrig.** Fel rättas med en rättelse som pekar
   på originalet; originalet står kvar överstruket i rapporten.
 - **Passet dateras sin startdag.** Ett nattpass 22:00–06:00 hör till startdagens

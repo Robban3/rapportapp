@@ -299,12 +299,15 @@ Vad som täcks:
 | `lib/losenord.test.js` | återställning: normalisering, strypning, ingen läcka om vem som finns |
 | `lib/personal.test.js` | avstängning: spärrarna mot att låsa ut sig själv och sista adminen |
 | `lib/rapportmall.test.js` | mejlmallen: rättelser, escaping, singularformer, listdrift |
+| `lib/timeout.test.js` | att ett hängande anrop bryts och blir ett köbart fel |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
 | `pages/losenord.test.jsx` | återställningssidorna: utgången länk, olika lösenord, inloggning efter byte |
 | `pages/admin/ReportDetail.test.jsx` | rapportvyn: rättelser, mottagare, låsning |
 
-Databasens regler testas inte härifrån. RLS-policyerna är verifierade separat mot
-en riktig Postgres (se *Spärren ligger i databasen*).
+Databasens regler testas inte härifrån. De är verifierade separat mot en riktig
+Postgres — 61 assertioner (se *Spärren ligger i databasen*). CI kör dessutom alla
+migrationer plus `seed.sql` mot en ren Postgres vid varje push, och typkontrollerar
+Edge Functions.
 
 ## Mörkt läge
 
@@ -454,6 +457,21 @@ bekvämt gränssnitt, inte skyddet. Verifierat mot Postgres att en inloggad vär
 kan skriva i ett låst pass, skriva i någon annans namn, bemanna sig själv, lägga upp
 egna pass, göra sig till admin, eller ändra och radera inlägg. Utloggade når ingenting.
 
+## Låst är inte samma sak som skickat
+
+Ett pass går igenom `oppet` → `granskas` → `last` → `skickat`.
+
+`last` betyder att loggen är stängd och rapporten sammanställd, men att
+leveransen inte är bekräftad. Passet blir `skickat` först när Resend svarat 2xx,
+och Resends message-id sparas i `pass.utskick_id`.
+
+Skälet är att låsning och utskick måste ske i den ordningen — låses passet efter
+utskicket kan ett inlägg som skrivs i samma sekund hamna i loggen men utanför
+rapporten, tyst och permanent. Men med bara ett tillstånd såg ett misslyckat
+utskick exakt ut som ett levererat: samma pill, samma tidsstämpel. Nu står ett
+sådant pass kvar som **Ej skickad** i rött med orsaken i `pass.utskick_fel`, och
+den överlever att administratören stänger fliken.
+
 ## Rättelser
 
 Ett inlägg går aldrig att redigera eller radera — inte heller av den som skrev det.
@@ -515,6 +533,17 @@ i en **utkorg** i telefonen i stället för att gå förlorat:
 
 Kön är knuten både till enheten och till personen: loggar någon annan in på samma
 telefon går inte den förras inlägg iväg i hens namn.
+
+## När det inte går fram
+
+Ett köat inlägg som *nekas* — låst pass, saknad behörighet — kommer aldrig fram
+av sig självt. Kön töms för hela personen oavsett pass, men passloggen visar bara
+det pass man står i, så ett inlägg från gårdagens numera låsta pass försvann
+tidigare ur allas synfält.
+
+Nu visas nekade inlägg i en röd ruta **både i objektlistan och i passloggen**,
+oavsett vilket pass de hörde till, med orsak och val mellan att skicka om eller
+slänga. Texten finns bara i den telefonen — ingen annan kommer att upptäcka den.
 
 ## Datamodell (kort)
 
