@@ -32,7 +32,9 @@ export async function aktuellPersonal() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const svar = await supabase.from('personal').select('*')
+  // Explicit kolumnlista: epost och auth_user_id ligger utanför granten för
+  // `authenticated`, och appen behöver dem aldrig för den inloggade själv.
+  const svar = await supabase.from('personal').select('id, namn, initialer, roll, aktiv')
     .eq('auth_user_id', user.id).eq('aktiv', true).maybeSingle()
   return kastaVidFel(svar, 'hämta din profil') || null
 }
@@ -795,7 +797,10 @@ export async function bjudInPersonal(epost) {
 // ----------------------------------------------- admin: personal & behörighet
 export async function listStaff() {
   if (!hasSupabase) return clone([...db.personal].sort((a, b) => a.initialer.localeCompare(b.initialer, 'sv')))
-  const svar = await supabase.from('personal').select('*').order('initialer')
+  // Adminpanelen visar e-post och om ett konto finns. Kolumnrättigheter kan
+  // inte skilja admin från värd — båda är rollen `authenticated` — så rollen
+  // kontrolleras i funktionen i stället.
+  const svar = await supabase.rpc('personal_for_admin')
   return kastaVidFel(svar, 'hämta personalen') || []
 }
 
@@ -820,7 +825,8 @@ export async function addStaff({ namn, initialer, roll, epost }) {
     return clone(saved)
   }
 
-  const svar = await supabase.from('personal').insert(row).select().maybeSingle()
+  const svar = await supabase.from('personal').insert(row)
+    .select('id, namn, initialer, roll, aktiv').maybeSingle()
   if (svar.error?.code === '23505') {
     throw new ApiError('E-postadressen används redan av någon annan.', { orsak: svar.error, kod: 'dublett' })
   }
@@ -990,7 +996,8 @@ export async function setStaffAktiv(personalId, aktiv) {
   }
 
   return kravRad(
-    await supabase.from('personal').update({ aktiv: pa }).eq('id', personalId).select().maybeSingle(),
+    await supabase.from('personal').update({ aktiv: pa }).eq('id', personalId)
+      .select('id, namn, initialer, roll, aktiv').maybeSingle(),
     pa ? 'aktivera personen' : 'stänga av personen'
   )
 }

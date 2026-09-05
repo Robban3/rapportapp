@@ -69,9 +69,18 @@ Deno.serve(async (req) => {
   // Adressen måste redan finnas som personal, annars skapas ett konto som
   // triggern inte kan koppla — och personen kan logga in utan att höra hemma
   // någonstans.
-  const { data: mottagare } = await somAnroparen
-    .from('personal').select('id, auth_user_id').eq('epost', epost).maybeSingle()
+  // epost och auth_user_id är inte läsbara för rollen `authenticated` — de
+  // ligger utanför kolumngranten. Funktionen gör samma admin-kontroll igen och
+  // returnerar bara det som behövs här.
+  const { data: traffar, error: uppslagFel } = await somAnroparen
+    .rpc('personal_for_invite', { p_epost: epost })
 
+  if (uppslagFel) {
+    console.error('bjud-in: kunde inte slå upp mottagaren', { fel: uppslagFel.message })
+    return svar(500, { fel: 'Kunde inte slå upp personen.' })
+  }
+
+  const mottagare = traffar?.[0]
   if (!mottagare) {
     return svar(404, { fel: 'Ingen personal med den adressen. Lägg upp personen först.' })
   }
