@@ -64,8 +64,9 @@ npm run build
   riktig Postgres, inte bara i gränssnittet.
 - **Migrationer läggs till, ändras aldrig.** En redan körd fil som ändras stoppar
   Supabases GitHub-integration.
-- **Edge Functions deployas för hand** (`supabase functions deploy <namn>`).
-  GitHub-integrationen kör bara migrationer.
+- **Edge Functions deployas av `.github/workflows/functions.yml`** vid push som rör
+  `supabase/functions/`. Supabases egen GitHub-integration kör bara migrationer.
+  Flödet kräver secrets `SUPABASE_ACCESS_TOKEN` och `SUPABASE_PROJECT_REF`.
 
 ## Domän och e-post
 

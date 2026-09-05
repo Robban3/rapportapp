@@ -1,0 +1,44 @@
+# Deployar Edge Functions till Supabase.
+#
+# Supabases GitHub-integration kör bara migrationer, aldrig funktioner. Utan
+# det här flödet måste varje ändring i supabase/functions deployas för hand
+# från en dator med CLI:n installerad och projektet länkat — vilket betyder
+# att den som sitter med en telefon inte kan rätta något alls.
+#
+# Kräver två repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  — skapas på supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_REF   — projektets Reference ID, står i dashboardens URL
+name: Edge Functions
+
+on:
+  push:
+    branches: [main]
+    # Bara när funktionerna faktiskt ändrats. En ändring i appen ska inte
+    # röra det som körs på servern.
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/functions.yml'
+  # Går även att köra manuellt från Actions-fliken, t.ex. efter att en secret
+  # bytts utan att koden ändrats.
+  workflow_dispatch:
+
+concurrency:
+  group: functions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Utan namn deployas alla funktioner under supabase/functions.
+      - name: Deploya funktionerna
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}

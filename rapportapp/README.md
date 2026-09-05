@@ -178,9 +178,23 @@ en Edge Function.
 `Lås och skicka` i rapportvyn anropar Edge-funktionen `skicka-rapport`, som låser
 passet, renderar rapporten och mejlar den till objektets `rapportmottagare`.
 
+Funktionerna deployas av `.github/workflows/functions.yml` vid varje push som rör
+`supabase/functions/`, eller manuellt från Actions-fliken. Det kräver två repository
+secrets: `SUPABASE_ACCESS_TOKEN` (skapas under Account → Access Tokens) och
+`SUPABASE_PROJECT_REF`.
+
+Nycklarna funktionen läser sätts i Supabase-dashboarden under
+Project Settings → Edge Functions → Secrets:
+
+```
+RESEND_API_KEY      = re_...
+RAPPORT_AVSANDARE   = Raptr <resend@raptr.se>
+```
+
+Samma sak från en dator med CLI:n, om du hellre vill:
+
 ```bash
 supabase secrets set RESEND_API_KEY=re_...
-supabase secrets set RAPPORT_AVSANDARE="Raptr <resend@raptr.se>"
 supabase functions deploy skicka-rapport
 ```
 
