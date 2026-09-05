@@ -188,7 +188,7 @@ Project Settings → Edge Functions → Secrets:
 
 ```
 RESEND_API_KEY      = re_...
-RAPPORT_AVSANDARE   = Raptr <no-reply@raptr.se>
+RAPPORT_AVSANDARE   = Raptr <rapport@raptr.se>
 ```
 
 Samma sak från en dator med CLI:n, om du hellre vill:
