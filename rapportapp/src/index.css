@@ -142,7 +142,14 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
   box-shadow:0 0 0 3px var(--accent-soft);}
 .form-row{display:flex;gap:11px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;}
 .form-row .field{margin:0;flex:1;min-width:130px;}
-.err{color:var(--alert);font-size:13px;font-weight:600;height:18px;}
+/* min-height i stället för height: texten "Kontot är inte kopplat till någon
+   personal" är tre rader i ett smalt kort och ritades tidigare ovanpå
+   inloggningsknappen. Höjden reserverar fortfarande plats så layouten inte
+   hoppar när ett fel dyker upp. */
+/* Syns bara för skärmläsare. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+.err{color:var(--alert);font-size:13px;font-weight:600;min-height:18px;line-height:1.45;}
 .kvitto{margin-top:10px;font-size:13px;font-weight:600;color:var(--accent);
   background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r);padding:9px 13px;}
 
@@ -267,20 +274,29 @@ code{font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-r
 .composer-inner{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:12px;box-shadow:var(--skugga-lyft);}
 .crow{display:flex;gap:9px;align-items:center;}
-.tinput{font-family:var(--mono);font-weight:700;font-size:14px;width:92px;text-align:center;flex:none;
+.tinput{font-family:var(--mono);font-weight:700;font-size:16px;width:92px;text-align:center;flex:none;
   font-variant-numeric:tabular-nums;background:var(--surface2);color:var(--ink);
   border:1px solid var(--line-strong);border-radius:var(--r);padding:11px 8px;
   transition:border-color .12s,box-shadow .12s;}
+/* 16px, inte 14: iOS zoomar in vid fokus på mindre text och zoomar aldrig ut
+   igen. De här två fälten används hundratals gånger per natt, och den sticky
+   komponeringsraden hamnade delvis utanför skärmen efter varje inlägg.
+   Samma regel som .login-form input redan har. */
 .tinput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
-.minput{flex:1;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r);
-  padding:11px 13px;font-size:14px;color:var(--ink);font-family:inherit;transition:border-color .12s,box-shadow .12s;}
+/* min-width:0 — utan den krymper inte fältet under sin egen textbredd, och
+   när texten gick från 14 till 16px sköts skicka-knappen utanför kortet på en
+   390px-skärm. Flexbox ger flex-objekt min-width:auto som standard. */
+.minput{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r);
+  padding:11px 13px;font-size:16px;color:var(--ink);font-family:inherit;transition:border-color .12s,box-shadow .12s;}
 .minput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .send{width:46px;height:46px;border-radius:var(--r);background:var(--accent);color:var(--accent-ink);border:none;
   font-size:18px;font-weight:700;flex:none;transition:background .12s;}
 .send:hover:not(:disabled){background:var(--accent-hover);}
 .send:disabled{opacity:.45;cursor:default;}
 .inc-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px;}
-.inc-chip{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;
+/* Minst 44px hög tryckyta. Chipsen ska träffas med handskar, i mörker, av
+   någon som samtidigt håller i en radio. */
+.inc-chip{font-size:12.5px;font-weight:600;padding:12px 14px;min-height:44px;border-radius:999px;
   background:var(--surface);border:1px solid var(--line-strong);color:var(--ink2);transition:all .12s;}
 .inc-chip:hover{border-color:var(--accent-line);}
 .inc-chip.on{background:var(--warn);color:var(--warn-ink);border-color:transparent;}

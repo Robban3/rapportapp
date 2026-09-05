@@ -150,6 +150,22 @@ export default function ShiftLog() {
     return () => { clearTimeout(timer); avsluta() }
   }, [passId, hamta])
 
+  // Utan pass finns inget att prenumerera på och inget att hämta, men läget
+  // kan ändras när som helst. En gles kontroll räcker: passet läggs upp av en
+  // människa, inte av en maskin.
+  useEffect(() => {
+    if (status !== 'inget_pass' && status !== 'ej_bemannad') return
+    const iv = setInterval(ladda, 60000)
+    const vidFokus = () => { if (!document.hidden) ladda() }
+    document.addEventListener('visibilitychange', vidFokus)
+    window.addEventListener('focus', vidFokus)
+    return () => {
+      clearInterval(iv)
+      document.removeEventListener('visibilitychange', vidFokus)
+      window.removeEventListener('focus', vidFokus)
+    }
+  }, [status, ladda])
+
   // Pollningen ligger kvar. Realtid som tappas tyst — sovande telefon, tappat
   // nät, proxy som stänger WebSockets — får inte betyda att loggen fryser.
   useEffect(() => {
@@ -275,22 +291,27 @@ export default function ShiftLog() {
 
   if (status === 'laddar') return <div className="empty">Laddar passet…</div>
   if (status === 'fel') return <Feltillstand fel={laddfel} onForsokIgen={ladda} />
-  if (status === 'obehorig') {
-    return <div className="empty">Du har inte behörighet till det här objektet. Be en administratör koppla dig.</div>
-  }
-  if (status === 'inget_pass') {
+  // De tre lägena nedan är inte fel — de är tillstånd som kan lösa sig medan
+  // värden står och tittar. Passet läggs upp 21:55, bemanningen sätts strax
+  // efter. Tidigare fanns ingen väg vidare: all uppdatering hängde på att det
+  // fanns ett pass, så skärmen kunde stå kvar på "Inget pass pågår" till 06:00
+  // och bara en hård omladdning hjälpte.
+  if (status === 'obehorig' || status === 'inget_pass' || status === 'ej_bemannad') {
+    const text = {
+      obehorig: ['Du har inte behörighet till det här objektet.', 'Be en administratör koppla dig.'],
+      inget_pass: [`Inget pass pågår just nu på ${objekt?.namn}.`, 'En administratör lägger upp och bemannar passet under Bemanning.'],
+      ej_bemannad: [`Du är inte bemannad på passet som pågår på ${objekt?.namn}.`, 'Be en administratör lägga till dig på passet, så ser du loggen.']
+    }[status]
+
     return (
-      <div className="empty">
-        Inget pass pågår just nu på {objekt?.namn}.
-        <div style={{ marginTop: 6 }}>En administratör lägger upp och bemannar passet under Bemanning.</div>
-      </div>
-    )
-  }
-  if (status === 'ej_bemannad') {
-    return (
-      <div className="empty">
-        Du är inte bemannad på passet som pågår på {objekt?.namn}.
-        <div style={{ marginTop: 6 }}>Be en administratör lägga till dig på passet, så ser du loggen.</div>
+      <div>
+        <Utkorgsvarning personalId={staff.id} />
+        <div className="empty">
+          {text[0]}
+          <div style={{ marginTop: 6 }}>{text[1]}</div>
+          <button className="btn" style={{ marginTop: 14 }} onClick={ladda}>Försök igen</button>
+          <div className="inc-hint" style={{ textAlign: 'center' }}>Sidan kollar själv en gång i minuten.</div>
+        </div>
       </div>
     )
   }
@@ -340,7 +361,14 @@ export default function ShiftLog() {
         {realtid && <span className="rt-tag" title="Kollegornas inlägg syns direkt">direkt</span>}
         {ko.length > 0 && <span className="ko-rakning">{ko.length} väntar på nät</span>}
       </div>
-      <div className="entries" aria-live="polite">
+      {/* Live-regionen ligger på det som faktiskt är nytt. Låg den på hela
+          listan lästes varenda inlägg upp igen vid varje poll — var 15:e
+          sekund, för den som använder skärmläsare. */}
+      <p className="sr-only" aria-live="polite">
+        {entries.length > 0 && `Senaste inlägget ${entries[entries.length - 1].tid} av ${entries[entries.length - 1].signatur}`}
+      </p>
+
+      <div className="entries">
         {entries.length === 0 && <div className="empty">Inget skrivet i passet ännu.</div>}
         {entries.map((e) => {
           const it = INCIDENT_TYPES.find((t) => t.key === e.incident_typ)

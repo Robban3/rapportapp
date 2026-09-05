@@ -82,6 +82,21 @@ describe('vem som släpps in i passloggen', () => {
     expect(api.entriesForPass).not.toHaveBeenCalled()
   })
 
+  it('låter den obemannade försöka igen i stället för att fastna till kl 06', async () => {
+    // Passet läggs ofta upp 21:55, efter att värden redan öppnat appen. Utan
+    // en väg vidare stod skärmen kvar på samma besked hela natten: all
+    // uppdatering hängde på att det redan fanns ett pass.
+    api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: false })
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText(/inte bemannad på passet/i)
+
+    api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: true })
+    await anv.click(screen.getByRole('button', { name: 'Försök igen' }))
+
+    expect(await screen.findByText('Nekar två minderåriga vid entrén.')).toBeInTheDocument()
+  })
+
   it('visar loggen för den som är bemannad', async () => {
     visa()
     expect(await screen.findByText('Nekar två minderåriga vid entrén.')).toBeInTheDocument()
