@@ -46,7 +46,7 @@ Lätt att lägga rätt sak på fel ställe.
 | --- | --- | --- |
 | Cloudflare → Build variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Bakas in i frontend-bundlen vid bygget. Publika — RLS är skyddet, inte nyckeln. |
 | GitHub → Repository secrets | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` | Används bara av `functions.yml` för att deploya. |
-| Supabase → Edge Function Secrets | `RESEND_API_KEY`, `RAPPORT_AVSANDARE` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
+| Supabase → Edge Function Secrets |  `RESEND_API_KEY`, `RAPPORT_AVSANDARE` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
 
 `RESEND_API_KEY` i Cloudflare hamnar i JS-bundlen och blir publik — då kan vem
 som helst skicka mejl i företagets namn. `SUPABASE_SERVICE_ROLE_KEY` ska
