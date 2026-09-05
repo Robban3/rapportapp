@@ -17,7 +17,7 @@
 // (SUPABASE_URL, SUPABASE_ANON_KEY och SUPABASE_SERVICE_ROLE_KEY injiceras
 // automatiskt av plattformen och kan inte sättas för hand.)
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3'
 import { renderaHtml, textVersion, amne, type RapportData } from './rapport-html.ts'
 
 const cors = {

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
+import Uppdatering from './components/Uppdatering.jsx'
 import { applicera } from './lib/tema.js'
 import { SessionProvider } from './state/session.jsx'
 import './index.css'
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <SessionProvider>
+        <Uppdatering />
         <App />
       </SessionProvider>
     </BrowserRouter>

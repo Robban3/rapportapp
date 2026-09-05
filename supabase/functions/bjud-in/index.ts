@@ -10,7 +10,7 @@
 // ("Env name cannot start with SUPABASE_, skipping"). Nyckeln finns alltså
 // aldrig i repot, och behöver inte göra det heller.
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',

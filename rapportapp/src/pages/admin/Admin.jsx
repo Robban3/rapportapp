@@ -54,6 +54,10 @@ export default function Admin() {
             Logga ut
           </button>
         </div>
+
+        {/* Versionen bakas in vid bygget. Utan den går frågan "vilken version
+            kör du?" inte att besvara när någon ringer mitt i ett pass. */}
+        <div className="side-version">{__APP_VERSION__}</div>
       </aside>
 
       <div className="admin-main">

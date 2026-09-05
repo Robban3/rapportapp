@@ -18,6 +18,77 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Migrationerna går rakt in i produktionsdatabasen via Supabases
+  # GitHub-integration så fort något landar på main. Utan den här grinden
+  # upptäcks trasig SQL först där.
+  databas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+        ports: ['5432:5432']
+
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Supabase-rollerna och auth-schemat finns inte i en ren Postgres.
+      # Stubben måste dela ut samma default privileges som Supabase gör,
+      # annars testar vi inte samma sak som produktion.
+      - name: Efterlikna Supabase
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          grant anon, authenticated, service_role to postgres;
+          create schema auth;
+          grant usage on schema public, auth to anon, authenticated, service_role;
+          alter default privileges in schema public
+            grant all on tables to anon, authenticated, service_role;
+          create table auth.users (id uuid primary key default gen_random_uuid(), email text unique);
+          create or replace function auth.uid() returns uuid language sql stable as $$
+            select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid $$;
+          SQL
+
+      - name: Kör migrationerna i ordning
+        run: |
+          for m in supabase/migrations/*.sql; do
+            echo "── $m"
+            psql -v ON_ERROR_STOP=1 -q -f "$m"
+          done
+
+      # seed.sql pekade en gång på en kolumn som en migration tagit bort, och
+      # det upptäcktes först när någon körde supabase db reset.
+      - name: Kör seed mot det färska schemat
+        run: psql -v ON_ERROR_STOP=1 -q -f supabase/seed.sql
+
+      # Ingen omkörning här med flit. Supabase spårar vilka migrationer som
+      # körts och kör var och en exakt en gång, så omkörbarhet är inte ett krav
+      # — och en av de tidiga migrationerna uppfyller det inte heller.
+
+  funktioner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Edge Functions deployas automatiskt vid push. Utan en kontroll här
+      # kunde koden som mejlar rapporter till kund landa i drift utan att ha
+      # blivit så mycket som parsad.
+      - name: Typkontrollera Edge Functions
+        run: deno check supabase/functions/*/index.ts
+
   kontroll:
     runs-on: ubuntu-latest
     defaults:

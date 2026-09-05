@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   listSchema, setSchemaRad, removeSchemaRad, setSchemaPersonal, removeSchemaPersonal,
-  skapaPassFranSchema, passForObjektDatum, rosterForPass, VECKODAGAR
+  skapaPassFranSchema, passForObjektDatum, rosterForPass, passList, VECKODAGAR
 } from './api.js'
 import { db } from './mockStore.js'
 import { localISO } from './time.js'
@@ -171,5 +171,38 @@ describe('veckodagarna', () => {
     expect(VECKODAGAR.map((d) => d.nr)).toEqual([1, 2, 3, 4, 5, 6, 7])
     expect(VECKODAGAR[0].namn).toBe('Måndag')
     expect(VECKODAGAR[6].namn).toBe('Söndag')
+  })
+})
+
+describe('rapportlistan', () => {
+  it('hämtar inte fler pass än en sida, och säger till att det finns fler', async () => {
+    // Utan tak drog "Skickade" hem varje pass som någonsin skickats — efter
+    // ett år med tio objekt är det tusentals rader in i en telefon.
+    const fore = db.pass.map((p) => ({ ...p }))
+    for (let n = 0; n < 7; n++) {
+      db.pass.push({ id: `p-list-${n}`, objekt_id: 'o1', datum: `2026-07-0${n + 1}`, starttid: '22:00', sluttid: '06:00', status: 'skickat' })
+    }
+
+    const { rader, fler } = await passList(['skickat'], { sidstorlek: 3 })
+    expect(rader).toHaveLength(3)
+    expect(fler).toBe(true)
+
+    const sista = await passList(['skickat'], { sidstorlek: 3, sida: 2 })
+    expect(sista.fler).toBe(false)
+
+    db.pass.splice(0, db.pass.length, ...fore)
+  })
+
+  it('filtrerar på objekt och datum', async () => {
+    const fore = db.pass.map((p) => ({ ...p }))
+    db.pass.push(
+      { id: 'f1', objekt_id: 'o1', datum: '2026-07-01', starttid: '22:00', status: 'skickat' },
+      { id: 'f2', objekt_id: 'o2', datum: '2026-07-02', starttid: '22:00', status: 'skickat' }
+    )
+
+    expect((await passList(['skickat'], { objektId: 'o2' })).rader.map((p) => p.id)).toEqual(['f2'])
+    expect((await passList(['skickat'], { fran: '2026-07-02' })).rader.map((p) => p.id)).toEqual(['f2'])
+
+    db.pass.splice(0, db.pass.length, ...fore)
   })
 })

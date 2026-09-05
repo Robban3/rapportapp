@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -5,11 +6,24 @@ import { VitePWA } from 'vite-plugin-pwa'
 // PWA-konfig: appen kan installeras på hemskärmen.
 // Service workern cachar skalet. OBS: någon offline-kö för inlägg finns INTE
 // ännu — inlägg som skrivs utan nät går förlorade. Se Fas 1.5 i roadmapen.
+// Versionen bakas in i bundlen. Utan den går det inte att svara på "vilken
+// version kör din telefon?" när en värd ringer mitt i ett pass.
+const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+const byggd = new Date().toISOString().slice(0, 16).replace('T', ' ')
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(`${version} · ${byggd}`)
+  },
   plugins: [
     react(),
     VitePWA({
+      // autoUpdate hämtar hem den nya service workern, men bara när sidan
+      // laddas. En installerad PWA som ligger kvar i app-växlaren mellan
+      // passen laddas aldrig om — därför registrerar main.jsx sig själv och
+      // frågar användaren i stället för att vänta på en kallstart.
       registerType: 'autoUpdate',
+      injectRegister: null,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Raptr',

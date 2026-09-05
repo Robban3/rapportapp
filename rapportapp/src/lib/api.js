@@ -669,16 +669,46 @@ export async function addEntry({ id = null, passId, personalId, tid, meddelande,
 }
 
 // --------------------------------------------------------- admin: pass-lista
-export async function passList(status) {
-  // status: array av statusvärden, t.ex. ['oppet','granskas'] eller ['skickat']
+/**
+ * Pass med någon av de angivna statusarna, nyast först.
+ *
+ * Hämtningen är begränsad. Tidigare fanns varken tak eller filter, så
+ * "Skickade" drog hem varje pass som någonsin skickats — med tio objekt och
+ * ett pass per natt är det över tretusen rader in i en telefon efter ett år,
+ * vid varje sidbesök.
+ *
+ * `sidstorlek + 1` hämtas för att kunna säga om det finns fler utan en extra
+ * räknefråga.
+ */
+export async function passList(status, { objektId = null, fran = null, till = null, sida = 0, sidstorlek = 50 } = {}) {
+  const passar = (p) =>
+    status.includes(p.status) &&
+    (!objektId || p.objekt_id === objektId) &&
+    (!fran || p.datum >= fran) &&
+    (!till || p.datum <= till)
+
   if (!hasSupabase) {
-    return db.pass.filter((p) => status.includes(p.status))
+    const alla = db.pass.filter(passar)
       .map((p) => ({ ...p, objekt_namn: db.objekt.find((o) => o.id === p.objekt_id)?.namn }))
       .sort((a, b) => b.datum.localeCompare(a.datum))
+    const rader = alla.slice(sida * sidstorlek, sida * sidstorlek + sidstorlek)
+    return { rader, fler: alla.length > (sida + 1) * sidstorlek }
   }
-  const svar = await supabase.from('pass').select('*, objekt:objekt_id ( namn )').in('status', status).order('datum', { ascending: false })
-  const data = kastaVidFel(svar, 'hämta passen')
-  return (data || []).map((p) => ({ ...p, objekt_namn: p.objekt?.namn }))
+
+  let fraga = supabase.from('pass').select('*, objekt:objekt_id ( namn )').in('status', status)
+  if (objektId) fraga = fraga.eq('objekt_id', objektId)
+  if (fran) fraga = fraga.gte('datum', fran)
+  if (till) fraga = fraga.lte('datum', till)
+
+  const svar = await fraga
+    .order('datum', { ascending: false })
+    .range(sida * sidstorlek, sida * sidstorlek + sidstorlek)
+
+  const data = kastaVidFel(svar, 'hämta passen') || []
+  return {
+    rader: data.slice(0, sidstorlek).map((p) => ({ ...p, objekt_namn: p.objekt?.namn })),
+    fler: data.length > sidstorlek
+  }
 }
 
 // ------------------------------------------------- admin: sammanställd rapport
