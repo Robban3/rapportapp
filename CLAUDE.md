@@ -29,6 +29,11 @@ Välj **ett** av flödena — de krockar:
 Root directory i byggkonfigurationen måste vara `rapportapp`. Missas den
 hittar bygget ingen `package.json`.
 
+SPA-fallbacken sköts av `not_found_handling` i `wrangler.toml`. Lägg **inte**
+till ett `public/_redirects` med `/* /index.html 200` — Workers Assets tar bort
+`.html` och `/index` automatiskt, så regeln pekar tillbaka på sig själv och
+deployen avvisas med *"Infinite loop detected in this rule"*.
+
 `VITE_*`-variabler måste sättas som **build**-variabler. Vite bakar in dem när
 bundlen byggs; som runtime-variabler ser appen dem aldrig och startar i
 demoläge mot seed-data.

@@ -157,11 +157,14 @@ och återställningsmejlen fel, och båda flödena bryts.
   raden svarar Cloudflare 404 på allt utom roten. Lösenordslänken i mejlet landar just
   på en sådan adress. Ingen `main` är satt: det finns ingen serverkod, bara det Vite
   byggt.
+
+  Lägg **inte** tillbaka ett `public/_redirects` med `/* /index.html 200` här. Workers
+  Assets tar bort `.html` och `/index` från adresser automatiskt, så regeln pekar
+  tillbaka på sig själv och Cloudflare avvisar hela deployen med
+  *"Infinite loop detected in this rule"*.
 - `public/_headers` — `index.html` och `sw.js` cachas inte hårt, annars kan en telefon
   sitta kvar på en gammal version i timmar efter en release. Byggda filer i `assets/`
   har innehållshash och cachas för alltid.
-- `public/_redirects` — samma SPA-omskrivning som `wrangler.toml` gör, för den som
-  hellre kör det äldre Pages-flödet.
 - `.node-version` — `22`. Cloudflare väljer annars en äldre Node än Vite 8 kräver.
 
 ## E-post (Resend)
