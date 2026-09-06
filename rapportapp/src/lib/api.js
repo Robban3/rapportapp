@@ -32,11 +32,13 @@ export async function aktuellPersonal() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Explicit kolumnlista: epost och auth_user_id ligger utanför granten för
-  // `authenticated`, och appen behöver dem aldrig för den inloggade själv.
-  const svar = await supabase.from('personal').select('id, namn, initialer, roll, aktiv')
-    .eq('auth_user_id', user.id).eq('aktiv', true).maybeSingle()
-  return kastaVidFel(svar, 'hämta din profil') || null
+  // Via funktion, inte via filter. auth_user_id ligger utanför kolumngranten
+  // för `authenticated`, och ett filter på en sådan kolumn nekas — rättigheten
+  // gäller varje referens, inte bara det som returneras. Det var precis det som
+  // låste ute alla från inloggningen. min_profil() läser auth.uid() serverside.
+  const svar = await supabase.rpc('min_profil')
+  const rader = kastaVidFel(svar, 'hämta din profil')
+  return rader?.[0] || null
 }
 
 export async function signIn(epost, losenord) {

@@ -51,10 +51,17 @@ Deno.serve(async (req) => {
 
   // Rollen läses från databasen mot anroparens EGET auth-id, som kommer från
   // den verifierade token. Den går inte att ljuga om från klienten.
-  const { data: mig } = await somAnroparen
-    .from('personal').select('roll, aktiv').eq('auth_user_id', user.id).maybeSingle()
+  // ar_admin() kollar både roll och aktiv, serverside. Tidigare filtrerade
+  // koden på auth_user_id, som ligger utanför kolumngranten — frågan nekades,
+  // felet destrukturerades aldrig, och varje admin fick ett 403 som pekade på
+  // fel orsak.
+  const { data: arAdmin, error: rollFel } = await somAnroparen.rpc('ar_admin')
 
-  if (!mig?.aktiv || mig.roll !== 'Admin') {
+  if (rollFel) {
+    console.error('kunde inte läsa rollen', { fel: rollFel.message })
+    return svar(500, { fel: 'Kunde inte kontrollera din behörighet. Försök igen.' })
+  }
+  if (!arAdmin) {
     return svar(403, { fel: 'Bara administratörer får bjuda in personal.' })
   }
 

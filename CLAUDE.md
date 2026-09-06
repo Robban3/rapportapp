@@ -78,7 +78,14 @@ npm run build
   inte bekräftad. Ett pass blir `skickat` först när Resend svarat 2xx.
 - **Kolumnrättigheter, inte bara RLS.** `personal` och `inlagg` har kolumnlistor i
   sina grants. Admin-vägar som behöver mer går genom SECURITY DEFINER-funktioner
-  (`personal_for_admin`, `personal_for_invite`, `sortera_om_pass`).
+  (`personal_for_admin`, `personal_for_invite`, `sortera_om_pass`, `min_profil`).
+- **Filtrera aldrig på en kolumn utanför granten.** Kolumnrättigheter omfattar
+  varje referens — WHERE-villkor lika mycket som det som returneras. Bara RLS-
+  policyernas egna predikat är undantagna. Ett `.eq('auth_user_id', …)` från
+  klienten nekas med 42501 och låste en gång ute alla från inloggningen.
+- **Ett härdningstest ska pröva båda hållen.** Att angreppet blockeras OCH att
+  appens egen fråga fortfarande går igenom. Bara det första var grönt medan
+  inloggningen var död.
 - **Inlägg raderas eller redigeras aldrig.** Fel rättas med en rättelse som pekar
   på originalet; originalet står kvar överstruket i rapporten.
 - **Passet dateras sin startdag.** Ett nattpass 22:00–06:00 hör till startdagens

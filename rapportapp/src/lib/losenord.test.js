@@ -9,9 +9,10 @@ const attrapp = vi.hoisted(() => ({
     updateUser: vi.fn(async () => ({ error: null })),
     getUser: vi.fn(async () => ({ data: { user: { id: 'u1' } } }))
   },
-  from: vi.fn(() => ({
-    select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'p1', initialer: 'ZÄEM' }, error: null }) }) }) })
-  }))
+  // Profilen hämtas via min_profil(), inte via ett filter på auth_user_id.
+  // Kolumnrättigheterna på `personal` omfattar även WHERE-villkor, så filtret
+  // nekas — det var det som låste ute alla från inloggningen.
+  rpc: vi.fn(async () => ({ data: [{ id: 'p1', initialer: 'ZÄEM', roll: 'Värd', aktiv: true }], error: null }))
 }))
 
 vi.mock('./supabase.js', () => ({ hasSupabase: true, supabase: attrapp }))

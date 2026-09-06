@@ -60,9 +60,17 @@ Deno.serve(async (req) => {
   const { data: { user }, error: userFel } = await somAnroparen.auth.getUser()
   if (userFel || !user) return svar(401, { fel: 'Din session har gått ut. Logga in igen.' })
 
-  const { data: mig } = await somAnroparen
-    .from('personal').select('roll, aktiv').eq('auth_user_id', user.id).maybeSingle()
-  if (!mig?.aktiv || mig.roll !== 'Admin') {
+  // ar_admin() kollar både roll och aktiv, serverside. Tidigare filtrerade
+  // koden på auth_user_id, som ligger utanför kolumngranten — frågan nekades,
+  // felet destrukturerades aldrig, och varje admin fick ett 403 som pekade på
+  // fel orsak.
+  const { data: arAdmin, error: rollFel } = await somAnroparen.rpc('ar_admin')
+
+  if (rollFel) {
+    console.error('kunde inte läsa rollen', { fel: rollFel.message })
+    return svar(500, { fel: 'Kunde inte kontrollera din behörighet. Försök igen.' })
+  }
+  if (!arAdmin) {
     return svar(403, { fel: 'Bara administratörer får skicka rapporten.' })
   }
 
