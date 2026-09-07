@@ -198,7 +198,9 @@ supabase secrets set RESEND_API_KEY=re_...
 supabase functions deploy skicka-rapport
 ```
 
-`RAPPORT_AVSANDARE` är valfri och faller tillbaka på `onboarding@resend.dev`.
+Båda krävs. Det finns ingen tyst fallback på `onboarding@resend.dev` — den
+adressen levererar bara till kontoägaren, så rapporten hade sett ut att gå iväg
+utan att nå hotellet.
 
 **Ordningen är medveten:** passet låses först, rapporten renderas ur det låsta
 tillståndet, och därefter skickas mejlet. Tvärtom hade ett inlägg som skrivs i samma
@@ -208,6 +210,24 @@ utskicket är passet låst men rapporten omarkerad som skickad, och administrat�
 
 Statistiken räknas om på servern, inte i klienten. Det som står i kundens rapport ska
 komma från databasen.
+
+#### PDF-bilagan
+
+Mejlet är det som läses; PDF:en är det som arkiveras — försäkring, myndighet, en tvist
+ett halvår senare. Samma innehåll, i samma ordning, men enklare layout: Edge Functions
+kan inte köra en webbläsare, så filen går inte att rendera ur HTML-mallen. Den ritas
+med `pdf-lib` i `rapport-pdf.ts`.
+
+**Ett fel i genereringen stoppar aldrig utskicket.** Rapporten är leveransen, bilagan
+är ett tillägg. Går ritandet fel loggas det med passets id och mejlet går ändå — utan
+bilaga. Det motsatta hade låtit ett oväntat tecken i ett inlägg tysta hela rapporten.
+
+Det är också därför `sanera()` finns: standardtypsnitten kodar WinAnsi, och en emoji
+i ett inlägg får annars pdf-lib att kasta. Svenska tecken, tankstreck och citattecken
+ryms i WinAnsi och passerar orörda; resten blir `?`.
+
+All logik som kan bli fel — radbrytning, sidindelning, teckenkodning — ligger i rena
+funktioner och testas från apptesterna, inte bara i en skarp körning.
 
 ### Supabase Auth över Resend
 
@@ -299,6 +319,7 @@ Vad som täcks:
 | `lib/losenord.test.js` | återställning: normalisering, strypning, ingen läcka om vem som finns |
 | `lib/personal.test.js` | avstängning: spärrarna mot att låsa ut sig själv och sista adminen |
 | `lib/rapportmall.test.js` | mejlmallen: rättelser, escaping, singularformer, listdrift |
+| `lib/rapportpdf.test.js` | PDF-bilagan: teckenkodning, radbrytning, sidbrott, rättelser |
 | `lib/timeout.test.js` | att ett hängande anrop bryts och blir ett köbart fel |
 | `pages/ShiftLog.test.jsx` | passloggen i webbläsaren: behörighet, skrivning, rättelser, offline |
 | `pages/losenord.test.jsx` | återställningssidorna: utgången länk, olika lösenord, inloggning efter byte |
@@ -555,10 +576,3 @@ slänga. Texten finns bara i den telefonen — ingen annan kommer att upptäcka 
 
 Statistiken i rapporten räknas automatiskt från inlägg som taggats med en incidenttyp,
 så ingen manuell ifyllnad krävs vid pass-slut.
-
-## Att bygga vidare på (TODO)
-
-- **PDF-bilaga:** rapporten mejlas som HTML, vilket är det kunden läser i telefonen.
-  Behöver hotellen en arkiverbar fil får `skicka-rapport` rita en PDF också — Edge
-  Functions kan inte köra en webbläsare, så den byggs programmatiskt och får en
-  enklare layout än mejlet.

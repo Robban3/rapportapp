@@ -19,6 +19,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3'
 import { renderaHtml, textVersion, amne, type RapportData } from './rapport-html.ts'
+import { renderaPdf, filnamn, base64 } from './rapport-pdf.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -163,6 +164,17 @@ Deno.serve(async (req) => {
     stats
   }
 
+  // Bilagan är det hotellet arkiverar — mejlet är det som läses. Går
+  // genereringen fel ska rapporten ändå iväg: ett oväntat tecken i ett inlägg
+  // får inte tysta hela utskicket. Då kommer mejlet utan bilaga, och felet
+  // står i loggen.
+  let bilagor: Array<{ filename: string; content: string }> = []
+  try {
+    bilagor = [{ filename: filnamn(data), content: base64(await renderaPdf(data)) }]
+  } catch (fel) {
+    console.error('skicka-rapport: PDF-bilagan kunde inte skapas', { passId, fel: String(fel) })
+  }
+
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${resendNyckel}`, 'Content-Type': 'application/json' },
@@ -171,7 +183,8 @@ Deno.serve(async (req) => {
       to: mottagare,
       subject: amne(data),
       html: renderaHtml(data),
-      text: textVersion(data)
+      text: textVersion(data),
+      ...(bilagor.length > 0 ? { attachments: bilagor } : {})
     })
   })
 

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -11,11 +12,28 @@ import { VitePWA } from 'vite-plugin-pwa'
 const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 const byggd = new Date().toISOString().slice(0, 16).replace('T', ' ')
 
+// Edge Functions importerar med Denos npm:-specifikator, som vitest inte kan
+// slå upp. Ett alias räcker inte: paketet skulle då sökas från importörens
+// mapp — supabase/functions/ — och därifrån hittar Node aldrig
+// rapportapp/node_modules. Uppslaget måste ske härifrån.
+// Ingenting i src/ importerar pdf-lib, så den hamnar aldrig i webbläsarbundlen.
+const krav = createRequire(import.meta.url)
+
+const denoNpm = {
+  name: 'raptr:deno-npm-specifikator',
+  enforce: 'pre',
+  resolveId(id) {
+    if (!id.startsWith('npm:')) return null
+    return krav.resolve(id.slice(4).replace(/@[\d.]+$/, ''))
+  }
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(`${version} · ${byggd}`)
   },
   plugins: [
+    denoNpm,
     react(),
     VitePWA({
       // autoUpdate hämtar hem den nya service workern, men bara när sidan

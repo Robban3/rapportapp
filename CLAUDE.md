@@ -59,7 +59,7 @@ Allt körs från `rapportapp/`:
 
 ```bash
 npm run dev      # demoläge om .env.local saknas
-npm test         # 189 tester
+npm test         # hela sviten
 npm run lint
 npm run build
 ```
