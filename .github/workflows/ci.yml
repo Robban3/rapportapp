@@ -76,6 +76,13 @@ jobs:
       # körts och kör var och en exakt en gång, så omkörbarhet är inte ett krav
       # — och en av de tidiga migrationerna uppfyller det inte heller.
 
+      # Planday-synken skriver i pass och pass_personal, alltså i det som är
+      # både rapportunderlag och åtkomstkontroll. Testerna prövar båda hållen:
+      # att synken gör sitt jobb, OCH att den aldrig rör ett låst pass, aldrig
+      # tar bort någon som skrivit i loggen och aldrig är nåbar för en värd.
+      - name: Härdningstester för Planday-synken
+        run: bash supabase/tests/planday.sh
+
   funktioner:
     runs-on: ubuntu-latest
     steps:

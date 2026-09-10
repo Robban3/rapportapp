@@ -86,6 +86,11 @@ npm run build
 - **Ett härdningstest ska pröva båda hållen.** Att angreppet blockeras OCH att
   appens egen fråga fortfarande går igenom. Bara det första var grönt medan
   inloggningen var död.
+- **Planday-synken äger bara sina egna rader.** `pass_personal.planday_shift_id`
+  är null för en handpålagd person, och då rör synken aldrig raden. Den rör inte
+  heller ett `last`- eller `skickat`-pass, tar aldrig bort någon som skrivit i
+  loggen, och raderar aldrig ett pass. Objekt med `objekt.planday_department_id`
+  hoppas över av veckoschemats generator — de styrs av Planday.
 - **Inlägg raderas eller redigeras aldrig.** Fel rättas med en rättelse som pekar
   på originalet; originalet står kvar överstruket i rapporten.
 - **Passet dateras sin startdag.** Ett nattpass 22:00–06:00 hör till startdagens
