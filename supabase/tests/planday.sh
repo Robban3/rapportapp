@@ -154,6 +154,67 @@ begin;
    where p.datum='2026-09-11' and pp.personal_id='$PESA';
 rollback;"
 
+echo "── sålda och överlåtna pass (shiftet behåller sitt id, byter person)"
+
+# Ett shift som byter ägare kommer TILLBAKA i nyttolasten med samma id. Att bara
+# jämföra shift-id räcker därför inte — den förre innehavaren står kvar och
+# behåller skrivrättighet till loggen.
+SALJ_TILL_ZAEM='[{"datum":"2026-09-11","starttid":"22:00",
+  "bemanning":[{"planday_shift_id":903,"planday_employee_id":11,"epost":"zaem@example.se"}]}]'
+SALJ_TILL_PESA='[{"datum":"2026-09-11","starttid":"22:00",
+  "bemanning":[{"planday_shift_id":903,"planday_employee_id":22,"epost":"pesa@example.se"}]}]'
+
+kolla "den som sålt sitt pass förlorar åtkomsten" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_ZAEM'::jsonb);
+  select (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-11' and pp.personal_id='$PESA') = 0
+     and (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-11' and pp.personal_id='$ZAEM') = 1;
+rollback;"
+
+kolla "men den som hunnit skriva behåller både text och åtkomst" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  insert into inlagg (pass_id, personal_id, tid, meddelande)
+    select id, '$PESA', '23:00', 'Hann jobba halva passet.' from pass
+     where objekt_id='$DRAKEN' and datum='2026-09-11';
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_ZAEM'::jsonb);
+  select (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-11' and pp.personal_id='$PESA') = 1
+     and (select count(*) from inlagg i join pass p on p.id=i.pass_id
+           where p.datum='2026-09-11' and i.personal_id='$PESA') = 1;
+rollback;"
+
+kolla "överlåtelse till någon omatchad tar ändå bort den förre innehavaren" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
+    \"bemanning\":[{\"planday_shift_id\":903,\"planday_employee_id\":99,\"epost\":\"nyanstalld@example.se\"}]}]'::jsonb);
+  select (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-11' and pp.personal_id='$PESA') = 0
+     and (select count(*) from planday_omatchad where planday_employee_id=99) = 1;
+rollback;"
+
+kolla "ett pass som släpps tillbaka till Open töms på sin förre innehavare" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  -- Open-shift: passet finns kvar med sina tider, men utan tilldelad person
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",\"bemanning\":[]}]'::jsonb);
+  select (select count(*) from pass where objekt_id='$DRAKEN' and datum='2026-09-11') = 1
+     and (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-11') = 0;
+rollback;"
+
+kolla "oförändrad tilldelning rör ingen rad" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  select synka_planday('$DRAKEN'::uuid, '$SALJ_TILL_PESA'::jsonb);
+  select count(*) = 1 from pass_personal pp join pass p on p.id=pp.pass_id
+   where p.datum='2026-09-11' and pp.personal_id='$PESA' and pp.planday_shift_id=903;
+rollback;"
+
 kolla "raderar ALDRIG ett pass som försvunnit ur Planday" "
 begin;
   insert into pass (objekt_id, datum, starttid) values ('$DRAKEN','2026-09-11','22:00');
