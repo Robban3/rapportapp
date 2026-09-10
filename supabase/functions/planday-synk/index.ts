@@ -16,9 +16,12 @@
 // Secrets sätts under Project Settings → Edge Functions → Secrets:
 //   PLANDAY_CLIENT_ID, PLANDAY_REFRESH_TOKEN
 //   PLANDAY_DAGAR (valfri, standard 30)
+//
+// Båda hämtas i Planday under Settings → Integrations → API Access: client_id
+// står i kolumnen "App Id", refresh-token i "Token" när appen auktoriserats.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.112.3'
-import { loggaIn, hamtaAlla, epostUr, namnUr, PlandayFel, type Klient } from './planday.ts'
+import { loggaIn, hamtaAlla, hamtaAnstallda, epostUr, namnUr, PlandayFel, type Klient } from './planday.ts'
 import { gruppera, type Skift, type Anstalld } from './normalisera.ts'
 
 const cors = {
@@ -159,8 +162,7 @@ Deno.serve(async (req) => {
     const pos = await hamtaAlla<Position>(klient, '/scheduling/v1.0/positions', new URLSearchParams(), 50)
     positioner = new Map(pos.filter((p) => p.name).map((p) => [p.id, String(p.name)]))
 
-    const folk = await hamtaAlla<Record<string, unknown>>(
-      klient, '/hr/v1.0/employees', new URLSearchParams(), 50)
+    const folk = await hamtaAnstallda(klient)
     anstallda = new Map(folk
       .filter((a) => typeof a.id === 'number')
       .map((a) => [a.id as number, { epost: epostUr(a), namn: namnUr(a) }]))

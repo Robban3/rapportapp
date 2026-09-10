@@ -1,18 +1,26 @@
 // Klienten mot Plandays Open API.
 //
-// Autentiseringen är OAuth2: en app registreras i Planday under
-// Settings → API access, ger ett client_id, och auktoriseringsflödet ger ett
-// refresh-token som inte går ut. Access-token lever en timme och hämtas därför
-// vid varje körning.
+// Autentiseringen är OAuth2. Appen skapas i Planday under
+// Settings → Integrations → API Access, och SCOPES VÄLJS DÄR — saknas ett
+// scope svarar API:t 403 på just den resursen, inte vid inloggningen. Synken
+// behöver:
 //
-// OBS: TOKEN_URL är den enda adressen som inte är bekräftad ur Plandays egen
-// dokumentation — auktoriseringssidan var blockerad när klienten skrevs.
-// Adressen följer IdentityServer-konventionen och matchar det bekräftade
-// id.planday.com/connect/authorize. Stämmer den inte svarar Planday 404 eller
-// 400 vid första körningen, och felet syns i planday_synk.fel. Det är en rad
-// att rätta, och den skadar ingen data under tiden.
+//   shift:read          GET /scheduling/v1.0/shifts
+//   shiftposition:read  GET /scheduling/v1.0/positions
+//   läsrätt på anställda för /hr/.../employees
+//
+// Appen måste dessutom auktoriseras per Planday-portal; först då finns ett
+// refresh-token under "Token" på samma sida. Det går inte ut. Access-token
+// lever en timme och hämtas därför vid varje körning.
 const TOKEN_URL = 'https://id.planday.com/connect/token'
 const API = 'https://openapi.planday.com'
+
+// Schemaresurserna dokumenteras som /scheduling/v1.0/..., men HR-exemplet i
+// auktoriseringsguiden använder /hr/v1/Departments. Vilken som gäller för
+// employees är inte utskrivet, så båda prövas i tur och ordning och den som
+// svarar loggas. Att gissa fel här hade gett noll matchningar och lagt varenda
+// anställd i planday_omatchad.
+const HR_VAGAR = ['/hr/v1.0/employees', '/hr/v1/employees']
 
 /** Plandays listsvar. `paging.total` är det som styr när vi är klara. */
 type Sidsvar<T> = { data?: T[]; paging?: { offset: number; limit: number; total: number } }
@@ -147,6 +155,29 @@ export function epostUr(anstalld: Record<string, unknown>): string | null {
     }
   }
   return null
+}
+
+/**
+ * Anställdregistret, oavsett vilken versionsväg portalen svarar på.
+ *
+ * En 404 betyder fel väg och ska provas om; allt annat — 403 för saknat scope,
+ * 401 för utgången token — är ett riktigt fel som ska nå administratören.
+ */
+export async function hamtaAnstallda(klient: Klient): Promise<Record<string, unknown>[]> {
+  let sist: PlandayFel | null = null
+
+  for (const vag of HR_VAGAR) {
+    try {
+      const folk = await hamtaAlla<Record<string, unknown>>(klient, vag, new URLSearchParams(), 50)
+      console.log('planday: läste anställda från', vag, `(${folk.length} st)`)
+      return folk
+    } catch (fel) {
+      if (fel instanceof PlandayFel && fel.status === 404) { sist = fel; continue }
+      throw fel
+    }
+  }
+
+  throw sist ?? new PlandayFel('Hittade ingen väg till anställdregistret.', 404, HR_VAGAR.join(', '))
 }
 
 export function namnUr(anstalld: Record<string, unknown>): string | null {

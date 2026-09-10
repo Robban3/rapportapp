@@ -435,9 +435,92 @@ annan får röra. Vill du köra den automatiskt varje natt kan den schemaläggas
 select cron.schedule('pass-ur-schema', '0 3 * * *', $$select skapa_pass_fran_schema(14)$$);
 ```
 
-Notera att pg_cron kör som databasägare, inte som en inloggad admin — vill du
-schemalägga den vägen behöver anropet gå via en wrapper som sätter rätt roll, eller
-så kör du den från adminpanelen tills det behovet finns.
+Notera att pg_cron kör som databasägare, inte som en inloggad admin. Det är
+därför generatorn är delad: `skapa_pass_fran_schema` kontrollerar `ar_admin()`,
+och den vägen fungerar bara för en inloggad administratör.
+
+**Veckoschemat gäller bara objekt som inte är kopplade till Planday.** Ett objekt
+med `planday_department_id` hoppas över av generatorn — där är Planday sanningen.
+
+## Planday
+
+Passen läggs redan ut i Planday, där personalen söker de pass de vill jobba. Ett
+eget veckoschema i Raptr hade betytt att kontoret underhöll samma schema på två
+ställen. Raptr läser därför i stället från Planday: kontoret gör ingenting nytt,
+och det dagliga utskicket av Google-dokument via SMS och mejl försvinner.
+
+**Ett Planday-skift är en person. Ett Raptr-pass är ett dygn på ett objekt.**
+Femton personer på ett evenemang är femton skift samma dag i samma department,
+och blir ett pass med femton rader bemanning. Ingen särskild evenemangsfunktion
+behövs.
+
+Kopplingen görs per objekt, så utrullningen kan ske ett objekt i taget.
+
+### Sätta upp
+
+1. I Planday: **Settings → Integrations → API Access → Create App**. Scopes
+   måste väljas här — saknas ett scope svarar API:t 403 på just den resursen,
+   inte vid inloggningen. Synken behöver `shift:read`, `shiftposition:read` och
+   läsrätt på anställda.
+2. Tryck **Authorize** bredvid appen och godkänn. Först då finns ett
+   refresh-token i kolumnen *Token*. Det går inte ut.
+3. I Supabase, under Edge Function Secrets:
+
+   ```
+   PLANDAY_CLIENT_ID     = <App Id>
+   PLANDAY_REFRESH_TOKEN = <Token>
+   PLANDAY_DAGAR         = 30
+   ```
+
+4. I Raptr, under **Objekt**: sätt objektets Planday-department.
+
+Appen måste auktoriseras per Planday-portal — ett refresh-token per portal.
+
+### Vad synken aldrig gör
+
+Reglerna sitter i `synka_planday`, inte i Edge-funktionen, och är testade mot en
+riktig Postgres i `supabase/tests/planday.sh`.
+
+- **Rör aldrig ett `last`- eller `skickat`-pass.** Rapporten är levererad.
+- **Tar aldrig bort någon som skrivit i loggen.** `pass_personal` är
+  åtkomstkontrollen; raden bär personens egen text.
+- **Rör aldrig en handpålagd rad** (`planday_shift_id` är null).
+- **Raderar aldrig ett pass**, inte ens när skiftet försvunnit ur Planday.
+
+Ett **överlåtet pass** behåller sitt shift-id men byter anställd. Därför jämförs
+paret `(shift_id, personal_id)` och inte bara shift-id:t — annars behöll den som
+sålt sitt pass skrivrättigheten till nattens logg.
+
+**Utkast filtreras bort.** Ett `Draft`-skift är inte publicerat för personalen. Ett
+`Open`-skift utan tilldelad person lägger däremot upp passet med rätt tider, så
+admin ser vilka kvällar som står obemannade.
+
+### Matchning av personal
+
+Planday-id först, e-post som reserv. Matchar den på e-post lärs Planday-id:t in,
+så nästa synk slipper leta. Den som inte går att koppla hamnar i
+`planday_omatchad` i stället för att tyst falla bort — annars står en värd utan
+logg och ingen förstår varför.
+
+### Tider
+
+Planday ger absoluta tidpunkter plus en tidszon; Raptr lagrar väggklocka. Utan
+konverteringen blir ett pass 22:00–06:00 svensk tid till 20:00–04:00 i
+databasen, och passfönstret som släpper in värden hamnar två timmar fel.
+
+Dygnet räknas däremot inte om: Plandays `date` är redan definierad som skiftets
+startdag, vilket är exakt Raptrs egen regel.
+
+### Nattlig körning
+
+Migrationen som schemalägger synken ligger i `supabase/vantande/` och körs inte
+förrän den flyttas till `supabase/migrations/`. Den kräver att `pg_cron` och
+`pg_net` slås på i dashboarden först, och att projekt-URL och service-nyckel
+läggs i Vault. Se READMEn i den mappen.
+
+Att den kastar i stället för att hoppa över tyst är avsiktligt: ett tyst
+överhopp hade gett ett grönt bygge över en automatik som aldrig går, och det
+märks först när en värd står utan pass mitt i natten.
 
 ## Pass över midnatt
 
