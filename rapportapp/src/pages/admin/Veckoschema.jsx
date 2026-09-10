@@ -6,8 +6,8 @@ import {
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 import Sidhuvud from '../../components/Sidhuvud.jsx'
+import { ROLLER } from '../../lib/roller.js'
 
-const ROLES = ['Värd', 'Ordningsvakt', 'Garderob']
 const TOM_DAG = { starttid: '', sluttid: '' }
 
 export default function Veckoschema() {
@@ -193,7 +193,7 @@ export default function Veckoschema() {
                           <span className="sp-namn">{sp.namn}</span>
                           <select value={sp.roll || ''} disabled={busy} aria-label={`Roll för ${sp.namn}`}
                             onChange={(e) => andraPerson(rad, sp, 'roll', e.target.value)}>
-                            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                            {ROLLER.map((r) => <option key={r} value={r}>{r}</option>)}
                           </select>
                           <input className="tinput" key={`in-${sp.tid_in}`}
                             defaultValue={sp.tid_in || ''} disabled={busy}

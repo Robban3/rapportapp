@@ -8,8 +8,8 @@ import { verksamhetsdatum, passFonster } from '../../lib/time.js'
 import { felText } from '../../lib/errors.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 import Sidhuvud from '../../components/Sidhuvud.jsx'
+import { ROLLER } from '../../lib/roller.js'
 
-const ROLES = ['Värd', 'Ordningsvakt', 'Garderob']
 const TOM_RAD = { personalId: '', roll: 'Värd', tid_in: '', tid_ut: '' }
 
 export default function Bemanning() {
@@ -279,7 +279,7 @@ export default function Bemanning() {
                       <td>
                         <select value={r.roll || ''} disabled={last || busy} aria-label={`Roll för ${r.namn}`}
                           onChange={(e) => sparaRad(r, 'roll', e.target.value)}>
-                          {ROLES.map((v) => <option key={v}>{v}</option>)}
+                          {ROLLER.map((v) => <option key={v}>{v}</option>)}
                         </select>
                       </td>
                       <td>
@@ -334,7 +334,7 @@ export default function Bemanning() {
                   <div className="field">
                     <label htmlFor="bem-roll">Roll</label>
                     <select id="bem-roll" value={nyRad.roll} onChange={(e) => setNyRad({ ...nyRad, roll: e.target.value })}>
-                      {ROLES.map((v) => <option key={v}>{v}</option>)}
+                      {ROLLER.map((v) => <option key={v}>{v}</option>)}
                     </select>
                   </div>
                   <div className="field" style={{ maxWidth: 110 }}>

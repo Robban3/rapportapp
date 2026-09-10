@@ -4,8 +4,8 @@ import { felText } from '../../lib/errors.js'
 import { useSession } from '../../state/sessionCtx.js'
 import Feltillstand from '../../components/Feltillstand.jsx'
 import Sidhuvud from '../../components/Sidhuvud.jsx'
+import { PERSONALROLLER } from '../../lib/roller.js'
 
-const ROLES = ['Värd', 'Ordningsvakt', 'Garderob', 'Admin']
 const TOM_FORM = { namn: '', initialer: '', roll: 'Värd', epost: '' }
 
 export default function Staff() {
@@ -196,7 +196,7 @@ export default function Staff() {
         <div className="field">
           <label htmlFor="ny-roll">Roll</label>
           <select id="ny-roll" value={form.roll} onChange={(e) => setForm({ ...form, roll: e.target.value })}>
-            {ROLES.map((r) => <option key={r}>{r}</option>)}
+            {PERSONALROLLER.map((r) => <option key={r}>{r}</option>)}
           </select>
         </div>
         <div className="field">

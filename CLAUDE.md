@@ -46,10 +46,12 @@ Lätt att lägga rätt sak på fel ställe.
 | --- | --- | --- |
 | Cloudflare → Build variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Bakas in i frontend-bundlen vid bygget. Publika — RLS är skyddet, inte nyckeln. |
 | GitHub → Repository secrets | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` | Används bara av `functions.yml` för att deploya. |
-| Supabase → Edge Function Secrets |  `RESEND_API_KEY`, `RAPPORT_AVSANDARE` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
+| Supabase → Edge Function Secrets |  `RESEND_API_KEY`, `RAPPORT_AVSANDARE`, `PLANDAY_CLIENT_ID`, `PLANDAY_REFRESH_TOKEN`, `PLANDAY_DAGAR` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
 
 `RESEND_API_KEY` i Cloudflare hamnar i JS-bundlen och blir publik — då kan vem
-som helst skicka mejl i företagets namn. `SUPABASE_SERVICE_ROLE_KEY` ska
+som helst skicka mejl i företagets namn. Detsamma gäller
+`PLANDAY_REFRESH_TOKEN`: det går inte ut, och i bundlen ger det vem som helst
+läs- och skrivrätt till hela personalschemat. `SUPABASE_SERVICE_ROLE_KEY` ska
 ingenstans sättas för hand: den injiceras automatiskt i Edge Functions, och
 CLI:n vägrar ta emot variabler som börjar på `SUPABASE_`.
 
