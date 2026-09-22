@@ -511,16 +511,34 @@ databasen, och passfönstret som släpper in värden hamnar två timmar fel.
 Dygnet räknas däremot inte om: Plandays `date` är redan definierad som skiftets
 startdag, vilket är exakt Raptrs egen regel.
 
-### Nattlig körning
+### Ingen nattlig körning
 
-Migrationen som schemalägger synken ligger i `supabase/vantande/` och körs inte
-förrän den flyttas till `supabase/migrations/`. Den kräver att `pg_cron` och
-`pg_net` slås på i dashboarden först, och att projekt-URL och service-nyckel
-läggs i Vault. Se READMEn i den mappen.
+Det fanns en pg_cron-migration som hämtade hela horisonten varje natt. Den är
+borttagen. Synken sker i stället **när någon behöver den**: öppnar en värd appen
+och inte hittar sitt pass hämtar passloggen det ur Planday direkt.
 
-Att den kastar i stället för att hoppa över tyst är avsiktligt: ett tyst
-överhopp hade gett ett grönt bygge över en automatik som aldrig går, och det
+Det tog bort fem av sju driftsteg — pg_cron, pg_net, två Vault-hemligheter och
+själva migrationen — och en hel klass av tysta fel: ett nattjobb som slutar gå
 märks först när en värd står utan pass mitt i natten.
+
+### Kontoret lägger inte upp någon
+
+Synken skapar personalen och kopplingen till objektet:
+
+- **`personal`** — finns någon i Planday med namn och e-post finns hen i Raptr.
+  Signaturen blir förnamnet i versaler, max sex tecken, med siffra vid krock
+  (`PESA`, `PESA2`). Rollen blir `Värd`; en Planday-position gör aldrig någon
+  till administratör.
+- **`personal_objekt`** — är du schemalagd på ett objekt är du kopplad till det.
+  Utan den raden läser `objectsForStaff` en tom lista och värden ser ingen väg
+  in, trots att både passet och bemanningen finns.
+
+Båda skrivs bara. **Namn, signatur och roll som en admin rättat skrivs aldrig
+över**, och kopplingen till objektet tas aldrig bort — har man jobbat där en
+gång ska man fortsatt se sina gamla loggar.
+
+Kvar i `planday_omatchad` står bara det som inte går att skapa: en anställd utan
+e-post eller utan namn i Planday.
 
 ## Pass över midnatt
 

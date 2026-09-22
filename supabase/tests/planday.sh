@@ -67,14 +67,27 @@ begin;
         'epost', 'evenemang'||g||'@example.se', 'namn','Extra '||g))))
     from generate_series(1,15) g));
   select (select count(*) from pass where objekt_id='$DRAKEN' and datum='2026-09-12') = 1
-     and (select count(*) from planday_omatchad) = 15;
+     and (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           where p.datum='2026-09-12') = 15
+     and (select count(*) from personal where planday_employee_id between 501 and 515) = 15
+     and (select count(*) from planday_omatchad) = 0;
 rollback;"
 
-kolla "omatchad personal hamnar i planday_omatchad i stället för att tystna" "
+kolla "den som saknar e-post i Planday hamnar i planday_omatchad" "
+begin;
+  -- Utan e-post finns ingen kopplingsnyckel och personen kan inte skapas.
+  -- Det är det enda fallet som blir kvar.
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
+    \"bemanning\":[{\"planday_shift_id\":902,\"planday_employee_id\":77,\"namn\":\"Utan Adress\"}]}]'::jsonb);
+  select (select count(*) from planday_omatchad where planday_employee_id=77) = 1
+     and (select count(*) from personal where planday_employee_id=77) = 0;
+rollback;"
+
+kolla "den som saknar namn i Planday hamnar också där" "
 begin;
   select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
-    \"bemanning\":[{\"planday_shift_id\":902,\"planday_employee_id\":77,\"epost\":\"okand@example.se\",\"namn\":\"Okänd\"}]}]'::jsonb);
-  select count(*) = 1 from planday_omatchad where planday_employee_id=77 and epost='okand@example.se';
+    \"bemanning\":[{\"planday_shift_id\":902,\"planday_employee_id\":78,\"epost\":\"utan.namn@example.se\"}]}]'::jsonb);
+  select count(*) = 1 from planday_omatchad where planday_employee_id=78;
 rollback;"
 
 kolla "omatchad rensas när personen väl går att koppla" "
@@ -85,6 +98,74 @@ begin;
   select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
     \"bemanning\":[{\"planday_shift_id\":902,\"planday_employee_id\":77,\"epost\":\"okand@example.se\"}]}]'::jsonb);
   select count(*) = 0 from planday_omatchad where planday_employee_id=77;
+rollback;"
+
+echo "── kontoret ska slippa lägga upp folk"
+
+NY_PERSON='[{"datum":"2026-09-11","starttid":"22:00",
+  "bemanning":[{"planday_shift_id":910,"planday_employee_id":300,
+                "epost":"nina.holm@example.se","namn":"Nina Holm"}]}]'
+
+kolla "skapar personen ur Planday med signatur av förnamnet" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  select namn='Nina Holm' and initialer='NINA' and roll='Värd' and planday_employee_id=300
+    from personal where lower(epost)='nina.holm@example.se';
+rollback;"
+
+kolla "ger siffra vid krock med en befintlig signatur" "
+begin;
+  -- Seeden har redan PESA.
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
+    \"bemanning\":[{\"planday_shift_id\":911,\"planday_employee_id\":301,
+                  \"epost\":\"pesa.andersson@example.se\",\"namn\":\"Pesa Andersson\"}]}]'::jsonb);
+  select initialer='PESA2' from personal where lower(epost)='pesa.andersson@example.se';
+rollback;"
+
+kolla "kopplar personen till objektet — utan raden ser värden en tom lista" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  select count(*) = 1 from personal_objekt po
+    join personal p on p.id = po.personal_id
+   where po.objekt_id='$DRAKEN' and lower(p.epost)='nina.holm@example.se';
+rollback;"
+
+kolla "kopplar även den som redan fanns men saknade koppling" "
+begin;
+  delete from personal_objekt where personal_id='$ZAEM' and objekt_id='$DRAKEN';
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",
+    \"bemanning\":[{\"planday_shift_id\":901,\"planday_employee_id\":11,\"epost\":\"zaem@example.se\"}]}]'::jsonb);
+  select count(*) = 1 from personal_objekt where personal_id='$ZAEM' and objekt_id='$DRAKEN';
+rollback;"
+
+kolla "skriver ALDRIG över en signatur som en admin rättat" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  update personal set initialer='NH', namn='Nina H', roll='Ordningsvakt'
+   where lower(epost)='nina.holm@example.se';
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  select initialer='NH' and namn='Nina H' and roll='Ordningsvakt'
+    from personal where lower(epost)='nina.holm@example.se';
+rollback;"
+
+kolla "tar ALDRIG bort kopplingen till objektet" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  -- Personen lämnar ifrån sig passet. Bemanningen ska bort, kopplingen stanna:
+  -- hen ska fortsatt se objektet och sina gamla loggar.
+  select synka_planday('$DRAKEN'::uuid, '[{\"datum\":\"2026-09-11\",\"starttid\":\"22:00\",\"bemanning\":[]}]'::jsonb);
+  select (select count(*) from personal_objekt po join personal p on p.id=po.personal_id
+           where po.objekt_id='$DRAKEN' and lower(p.epost)='nina.holm@example.se') = 1
+     and (select count(*) from pass_personal pp join pass p on p.id=pp.pass_id
+           join personal pe on pe.id=pp.personal_id
+           where p.datum='2026-09-11' and lower(pe.epost)='nina.holm@example.se') = 0;
+rollback;"
+
+kolla "dubblerar inte personen vid andra körningen" "
+begin;
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  select synka_planday('$DRAKEN'::uuid, '$NY_PERSON'::jsonb);
+  select count(*) = 1 from personal where lower(epost)='nina.holm@example.se';
 rollback;"
 
 echo "── det som får kosta en logg om det brister"
