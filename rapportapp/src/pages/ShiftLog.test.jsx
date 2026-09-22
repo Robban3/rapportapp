@@ -12,7 +12,8 @@ const api = vi.hoisted(() => ({
   aktivtPassForStaff: vi.fn(),
   passById: vi.fn(),
   entriesForPass: vi.fn(),
-  addEntry: vi.fn()
+  addEntry: vi.fn(),
+  synkaFranPlanday: vi.fn()
 }))
 
 vi.mock('../lib/api.js', async () => {
@@ -52,6 +53,7 @@ beforeEach(() => {
   api.passById.mockResolvedValue(PASS)
   api.entriesForPass.mockResolvedValue([inlagg()])
   api.addEntry.mockResolvedValue(inlagg({ id: 'i2' }))
+  api.synkaFranPlanday.mockResolvedValue({ synkade: 1 })
 })
 
 afterEach(() => {
@@ -82,17 +84,34 @@ describe('vem som släpps in i passloggen', () => {
     expect(api.entriesForPass).not.toHaveBeenCalled()
   })
 
-  it('låter den obemannade försöka igen i stället för att fastna till kl 06', async () => {
-    // Passet läggs ofta upp 21:55, efter att värden redan öppnat appen. Utan
-    // en väg vidare stod skärmen kvar på samma besked hela natten: all
-    // uppdatering hängde på att det redan fanns ett pass.
+  it('hämtar ur Planday och släpper in den som tagit passet sent', async () => {
+    // Någon tar ett ledigt pass kl 17:00 som börjar 22:00. Utan en väg vidare
+    // stod skärmen kvar på samma besked hela natten: all uppdatering hängde på
+    // att passet redan fanns i Raptr.
     api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: false })
     const anv = userEvent.setup()
     visa()
     await screen.findByText(/inte bemannad på passet/i)
 
     api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: true })
-    await anv.click(screen.getByRole('button', { name: 'Försök igen' }))
+    await anv.click(screen.getByRole('button', { name: 'Hämta från Planday' }))
+
+    // Synken ska gälla just det objektet, inte hela horisonten.
+    expect(api.synkaFranPlanday).toHaveBeenCalledWith({ objektId: 'o1' })
+    expect(await screen.findByText('Nekar två minderåriga vid entrén.')).toBeInTheDocument()
+  })
+
+  it('laddar om även när Planday svarar med fel', async () => {
+    // En synk som faller får inte låsa knappen: passet kan ha kommit in på
+    // annat sätt, och värden ska kunna försöka igen.
+    api.synkaFranPlanday.mockRejectedValueOnce(new Error('Planday svarade 502.'))
+    api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: false })
+    const anv = userEvent.setup()
+    visa()
+    await screen.findByText(/inte bemannad på passet/i)
+
+    api.aktivtPassForStaff.mockResolvedValue({ pass: PASS, bemannad: true })
+    await anv.click(screen.getByRole('button', { name: 'Hämta från Planday' }))
 
     expect(await screen.findByText('Nekar två minderåriga vid entrén.')).toBeInTheDocument()
   })
