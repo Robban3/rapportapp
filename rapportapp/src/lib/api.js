@@ -1259,44 +1259,4 @@ export async function skapaPassFranSchema(dagar = 14) {
   }
 }
 
-/**
- * Hämtar passen ur Planday på begäran.
- *
- * Det finns inget nattligt jobb. Synken sker när någon behöver den, vilket tar
- * bort en hel klass av tysta fel: ett schemalagt jobb som slutar gå märks
- * först när en värd står utan pass mitt i natten.
- *
- * `objektId` synkar ett objekt — kräver att värden redan är kopplad till det.
- * Utan argument synkar den den inloggades EGNA pass, oavsett koppling. Det
- * andra läget finns för moment 22:t att en värd som aldrig synkats inte har
- * någon koppling, därför ser en tom objektlista, och alltså inte har något
- * objekt att öppna som kunde utlösa synken.
- *
- * Servern stryper till en synk per objekt och minut, så den går att anropa
- * från en pollande vy utan att bli ett anrop per öppen telefon.
- */
-export async function synkaFranPlanday({ objektId = null } = {}) {
-  if (!hasSupabase) {
-    // Demoläget har ingen Planday att fråga. Seed-datan ligger redan där.
-    return { synkade: 0, demolage: true }
-  }
-
-  const { data, error } = await supabase.functions.invoke('planday-synk', {
-    body: objektId ? { objektId } : { mig: true }
-  })
-
-  if (error) {
-    // Funktionens egna felmeddelanden ligger i svarskroppen, inte i
-    // error.message — utan det här får värden "non-2xx status code".
-    let text = 'Kunde inte hämta passen från Planday.'
-    try {
-      const kropp = await error.context?.json?.()
-      if (kropp?.fel) text = kropp.fel
-    } catch { /* svaret var inte JSON — behåll standardtexten */ }
-    throw new ApiError(text, { orsak: error, kod: 'planday' })
-  }
-
-  return data || { synkade: 0 }
-}
-
 export { INCIDENT_TYPES }

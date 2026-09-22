@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  objectsForStaff, aktivtPassForStaff, passById, entriesForPass, addEntry,
-  synkaFranPlanday, INCIDENT_TYPES
+  objectsForStaff, aktivtPassForStaff, passById, entriesForPass, addEntry, INCIDENT_TYPES
 } from '../lib/api.js'
 import { useSession } from '../state/sessionCtx.js'
 import { nowHHMM, normalizeTid, passFonster } from '../lib/time.js'
@@ -38,7 +37,6 @@ export default function ShiftLog() {
   // upp, respektive be om att bli bemannad på just den här dagen.
   const [status, setStatus] = useState('laddar') // laddar | klar | obehorig | inget_pass | ej_bemannad | fel
   const [laddfel, setLaddfel] = useState(null)
-  const [hamtar, setHamtar] = useState(false)
   const [objekt, setObjekt] = useState(null)
   const [pass, setPass] = useState(null)
 
@@ -301,16 +299,6 @@ export default function ShiftLog() {
   // fanns ett pass, så skärmen kunde stå kvar på "Inget pass pågår" till 06:00
   // och bara en hård omladdning hjälpte.
   if (status === 'obehorig' || status === 'inget_pass' || status === 'ej_bemannad') {
-    // Passet kan ligga i Planday utan att ha nått Raptr än — någon tog det kl
-    // 17:00 och passet börjar 22:00. Knappen hämtar därför först, och laddar
-    // om efteråt. Servern stryper till en synk per objekt och minut.
-    const hamtaOchLadda = async () => {
-      setHamtar(true)
-      try { await synkaFranPlanday(status === 'obehorig' ? {} : { objektId }) }
-      catch (fel) { setLaddfel(fel) }
-      finally { setHamtar(false) }
-      await ladda()
-    }
 
     const text = {
       obehorig: ['Du har inte behörighet till det här objektet.', 'Be en administratör koppla dig.'],
@@ -324,9 +312,7 @@ export default function ShiftLog() {
         <div className="empty">
           {text[0]}
           <div style={{ marginTop: 6 }}>{text[1]}</div>
-          <button className="btn" style={{ marginTop: 14 }} onClick={hamtaOchLadda} disabled={hamtar}>
-            {hamtar ? 'Hämtar…' : 'Hämta från Planday'}
-          </button>
+          <button className="btn" style={{ marginTop: 14 }} onClick={ladda}>Försök igen</button>
           <div className="inc-hint" style={{ textAlign: 'center' }}>Sidan kollar själv en gång i minuten.</div>
         </div>
       </div>

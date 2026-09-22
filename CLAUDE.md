@@ -46,12 +46,10 @@ Lätt att lägga rätt sak på fel ställe.
 | --- | --- | --- |
 | Cloudflare → Build variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Bakas in i frontend-bundlen vid bygget. Publika — RLS är skyddet, inte nyckeln. |
 | GitHub → Repository secrets | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` | Används bara av `functions.yml` för att deploya. |
-| Supabase → Edge Function Secrets |  `RESEND_API_KEY`, `RAPPORT_AVSANDARE`, `PLANDAY_CLIENT_ID`, `PLANDAY_REFRESH_TOKEN`, `PLANDAY_DAGAR` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
+| Supabase → Edge Function Secrets |  `RESEND_API_KEY`, `RAPPORT_AVSANDARE` | Läses av servern vid varje anrop. Ingen ny deploy behövs när de ändras. |
 
 `RESEND_API_KEY` i Cloudflare hamnar i JS-bundlen och blir publik — då kan vem
-som helst skicka mejl i företagets namn. Detsamma gäller
-`PLANDAY_REFRESH_TOKEN`: det går inte ut, och i bundlen ger det vem som helst
-läs- och skrivrätt till hela personalschemat. `SUPABASE_SERVICE_ROLE_KEY` ska
+som helst skicka mejl i företagets namn. `SUPABASE_SERVICE_ROLE_KEY` ska
 ingenstans sättas för hand: den injiceras automatiskt i Edge Functions, och
 CLI:n vägrar ta emot variabler som börjar på `SUPABASE_`.
 
@@ -88,11 +86,6 @@ npm run build
 - **Ett härdningstest ska pröva båda hållen.** Att angreppet blockeras OCH att
   appens egen fråga fortfarande går igenom. Bara det första var grönt medan
   inloggningen var död.
-- **Planday-synken äger bara sina egna rader.** `pass_personal.planday_shift_id`
-  är null för en handpålagd person, och då rör synken aldrig raden. Den rör inte
-  heller ett `last`- eller `skickat`-pass, tar aldrig bort någon som skrivit i
-  loggen, och raderar aldrig ett pass. Objekt med `objekt.planday_department_id`
-  hoppas över av veckoschemats generator — de styrs av Planday.
 - **Inlägg raderas eller redigeras aldrig.** Fel rättas med en rättelse som pekar
   på originalet; originalet står kvar överstruket i rapporten.
 - **Passet dateras sin startdag.** Ett nattpass 22:00–06:00 hör till startdagens

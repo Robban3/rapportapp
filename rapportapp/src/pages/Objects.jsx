@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { objectsForStaff, objektStatusForStaff, synkaFranPlanday } from '../lib/api.js'
+import { objectsForStaff, objektStatusForStaff } from '../lib/api.js'
 import { useSession } from '../state/sessionCtx.js'
 import Feltillstand from '../components/Feltillstand.jsx'
 import Utkorgsvarning from '../components/Utkorgsvarning.jsx'
@@ -16,7 +16,6 @@ export default function Objects() {
   const [objekt, setObjekt] = useState(null)
   const [status, setStatus] = useState({})
   const [fel, setFel] = useState(null)
-  const [hamtar, setHamtar] = useState(false)
   const nav = useNavigate()
 
   const ladda = useCallback(() => {
@@ -31,12 +30,6 @@ export default function Objects() {
       })
       .catch(setFel)
   }, [staff.id])
-
-  const hamtaMina = useCallback(async () => {
-    setHamtar(true)
-    try { await synkaFranPlanday() } catch (f) { setFel(f) } finally { setHamtar(false) }
-    ladda()
-  }, [ladda])
 
   useEffect(() => { ladda() }, [ladda])
 
@@ -53,15 +46,7 @@ export default function Objects() {
       ) : objekt === null ? (
         <div className="empty">Laddar…</div>
       ) : objekt.length === 0 ? (
-        <div className="empty">
-          Du är inte kopplad till något objekt ännu.
-          <div style={{ marginTop: 6 }}>
-            Är du schemalagd i Planday hämtas objektet när du trycker här.
-          </div>
-          <button className="btn" style={{ marginTop: 14 }} onClick={hamtaMina} disabled={hamtar}>
-            {hamtar ? 'Hämtar…' : 'Hämta mina pass'}
-          </button>
-        </div>
+        <div className="empty">Du är inte kopplad till något objekt ännu. Be en administratör koppla dig.</div>
       ) : (
         <div className="obj-list">
           {objekt.map((o) => {
